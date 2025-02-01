@@ -54,28 +54,28 @@ The first version of the query is written in Drolta. The second version is writt
 
 ```plaintext
 FIND
- ?c0, ?c1
+    ?c0, ?c1
 WHERE
- family_head(head_id=?c0, end_date=NULL),
- family_head(head_id=?c1, end_date=NULL),
- (?c0 != ?c1),
- relation(character_id=?c0, target_id=?c1, relation_type="rival"),
- relation(character_id=?c1, target_id=?c0, relation_type="rival"),
- half_siblings(character_a=?c0, character_b=?c1),
+    family_head(head_id=?c0, end_date=NULL)
+    family_head(head_id=?c1, end_date=NULL)
+    (?c0 != ?c1)
+    relation(character_id=?c0, target_id=?c1, relation_type="rival")
+    relation(character_id=?c1, target_id=?c0, relation_type="rival")
+    half_siblings(character_a=?c0, character_b=?c1)
 LIMIT
- 10;
+    10;
 ```
 
 **SQL Query:**
 
 ```sql
 SELECT DISTINCT
-  c0.uid as c0,
-  c1.uid as c1
+    c0.uid as c0,
+    c1.uid as c1
 FROM
- characters c0,
- characters c1,
- families f0
+    characters c0,
+    characters c1,
+    families f0
 WHERE
  (
  (
@@ -192,98 +192,98 @@ cursor = db.cursor()
 # Create a new table to hold the character information
 cursor.execute(
     """
- CREATE TABLE characters (
- id INTEGER PRIMARY KEY NOT NULL,
- name TEXT,
- house TEXT,
- sex TEXT,
- life_stage TEXT,
- is_alive INTEGER
- ) STRICT;
- """
+    CREATE TABLE characters (
+        id INTEGER PRIMARY KEY NOT NULL,
+        name TEXT,
+        house TEXT,
+        sex TEXT,
+        life_stage TEXT,
+        is_alive INTEGER
+    ) STRICT;
+    """
 )
 
 # Insert character information
 cursor.executemany(
     """
- INSERT INTO
- characters (id, name, house, sex, life_stage, is_alive)
- VALUES
- (?, ?, ?, ?, ?, ?);
- """,
- [
- (1, "Rhaenyra", "Targaryen", "F", "Adult", 1),
- (2, "Leanor", "Velaryon", "M", "Adult", 1),
- (3, "Harwin", "Strong", "M", "Adult", 1),
- (4, "Jacaerys", "Velaryon", "M", "Teen", 1),
- (5, "Addam", "", "M", "Teen", 1),
- (6, "Corlys", "Velaryon", "M", "Adult", 1),
- (7, "Marilda", "", "F", "Adult", 0),
- (8, "Alyn", "", "Adult", 1),
- (9, "Rhaenys", "Targaryen", "F", "Adult", 0),
- (10, "Laena", "Velaryon", "F", "Adult", 0),
- (11, "Daemon", "Targaryen", "M", "Adult", 1),
- (12, "Baela", "Targaryen", "F", "Teen", 1),
- (13, "Viserys", "Targaryen", "M", "Senior", 0),
- (14, "Alicent", "Hightower", "F", "Adult", 1),
- (15, "Otto", "Hightower", "M", "Senior", 1),
- (16, "Aegon", "Targaryen", "M", "Teen", 1),
- (17, "Cristen", "Cole", "M", "Adult", 1),
- ]
+    INSERT INTO
+    characters (id, name, house, sex, life_stage, is_alive)
+    VALUES
+    (?, ?, ?, ?, ?, ?);
+    """,
+    [
+        (1, "Rhaenyra", "Targaryen", "F", "Adult", 1),
+        (2, "Leanor", "Velaryon", "M", "Adult", 1),
+        (3, "Harwin", "Strong", "M", "Adult", 1),
+        (4, "Jacaerys", "Velaryon", "M", "Teen", 1),
+        (5, "Addam", "", "M", "Teen", 1),
+        (6, "Corlys", "Velaryon", "M", "Adult", 1),
+        (7, "Marilda", "", "F", "Adult", 0),
+        (8, "Alyn", "", "Adult", 1),
+        (9, "Rhaenys", "Targaryen", "F", "Adult", 0),
+        (10, "Laena", "Velaryon", "F", "Adult", 0),
+        (11, "Daemon", "Targaryen", "M", "Adult", 1),
+        (12, "Baela", "Targaryen", "F", "Teen", 1),
+        (13, "Viserys", "Targaryen", "M", "Senior", 0),
+        (14, "Alicent", "Hightower", "F", "Adult", 1),
+        (15, "Otto", "Hightower", "M", "Senior", 1),
+        (16, "Aegon", "Targaryen", "M", "Teen", 1),
+        (17, "Cristen", "Cole", "M", "Adult", 1),
+    ]
 )
 
 # Create a new table to track how characters are related to each other
 cursor.execute(
     """
- CREATE TABLE relations (
- from_id INTEGER NOT NULL,
- to_id INTEGER NOT NULL,
- type TEXT NOT NULL,
- FOREIGN KEY (from_id) REFERENCES characters(id),
- FOREIGN KEY (to_id) REFERENCES characters(id)
- ) STRICT;
- """
+    CREATE TABLE relations (
+        from_id INTEGER NOT NULL,
+        to_id INTEGER NOT NULL,
+        type TEXT NOT NULL,
+        FOREIGN KEY (from_id) REFERENCES characters(id),
+        FOREIGN KEY (to_id) REFERENCES characters(id)
+    ) STRICT;
+    """
 )
 
 # Insert relation information
 cursor.executemany(
     """
- INSERT INTO
- relations (from_id, to_id, type)
- VALUES
- (?, ?, ?);
- """,
- [
- (4, 1, "Mother"),               # Jace -> Rhaenyra
- (4, 2, "Father"),               # Jace -> Laenor
- (4, 3, "BiologicalFather"),     # Jace -> Harwin
- (5, 6, "BiologicalFather"),     # Addam -> Corlys
- (2, 6, "BiologicalFather"),     # Leanor -> Corlys
- (2, 6, "Father"),               # Leanor -> Corlys
- (5, 7, "Mother"),               # Addam -> Marilda
- (8, 7, "Mother"),               # Alyn -> Marilda
- (8, 6, "BiologicalFather"),     # Alyn -> Corlys
- (2, 9, "Mother"),               # Laenor -> Rhaenys
- (10, 9, "Mother"),              # Laena -> Rhaenys
- (10, 6, "Father"),              # Laena -> Corlys
- (10, 6, "BiologicalFather"),    # Laena -> Corlys
- (6, 9, "Widower"),              # Corlys -> Rhaenys
- (6, 9, "FormerSpouse"),         # Corlys -> Rhaenys
- (9, 6, "FormerSpouse"),         # Rhaenys -> Corlys
- (12, 10, "Mother"),             # Baela -> Laena
- (12, 11, "Father"),             # Baela -> Daemon
- (12, 11, "BiologicalFather"),   # Baela -> Daemon
- (1, 11, "Spouse"),              # Rhaenyra -> Daemon
- (11, 1, "Spouse"),              # Daemon -> Rhaenyra
- (10, 11, "FormerSpouse"),       # Laena -> Daemon
- (11, 10, "FormerSpouse"),       # Daemon -> Laena
- (11, 10, "Widower"),            # Daemon -> Laena
- (1, 13, "Father"),              # Rhaenyra -> Viserys
- (1, 13, "BiologicalFather"),    # Rhaenyra -> Viserys
- (16, 14, "Mother"),             # Aegon -> Alicent
- (14, 15, "Father"),             # Alicent => Otto
- (14, 15, "BiologicalFather"),   # Alicent => Otto
- ]
+    INSERT INTO
+        relations (from_id, to_id, type)
+    VALUES
+        (?, ?, ?);
+    """,
+    [
+        (4, 1, "Mother"),               # Jace -> Rhaenyra
+        (4, 2, "Father"),               # Jace -> Laenor
+        (4, 3, "BiologicalFather"),     # Jace -> Harwin
+        (5, 6, "BiologicalFather"),     # Addam -> Corlys
+        (2, 6, "BiologicalFather"),     # Leanor -> Corlys
+        (2, 6, "Father"),               # Leanor -> Corlys
+        (5, 7, "Mother"),               # Addam -> Marilda
+        (8, 7, "Mother"),               # Alyn -> Marilda
+        (8, 6, "BiologicalFather"),     # Alyn -> Corlys
+        (2, 9, "Mother"),               # Laenor -> Rhaenys
+        (10, 9, "Mother"),              # Laena -> Rhaenys
+        (10, 6, "Father"),              # Laena -> Corlys
+        (10, 6, "BiologicalFather"),    # Laena -> Corlys
+        (6, 9, "Widower"),              # Corlys -> Rhaenys
+        (6, 9, "FormerSpouse"),         # Corlys -> Rhaenys
+        (9, 6, "FormerSpouse"),         # Rhaenys -> Corlys
+        (12, 10, "Mother"),             # Baela -> Laena
+        (12, 11, "Father"),             # Baela -> Daemon
+        (12, 11, "BiologicalFather"),   # Baela -> Daemon
+        (1, 11, "Spouse"),              # Rhaenyra -> Daemon
+        (11, 1, "Spouse"),              # Daemon -> Rhaenyra
+        (10, 11, "FormerSpouse"),       # Laena -> Daemon
+        (11, 10, "FormerSpouse"),       # Daemon -> Laena
+        (11, 10, "Widower"),            # Daemon -> Laena
+        (1, 13, "Father"),              # Rhaenyra -> Viserys
+        (1, 13, "BiologicalFather"),    # Rhaenyra -> Viserys
+        (16, 14, "Mother"),             # Aegon -> Alicent
+        (14, 15, "Father"),             # Alicent => Otto
+        (14, 15, "BiologicalFather"),   # Alicent => Otto
+    ]
 )
 
 # Commit the above changes to the database.
@@ -299,13 +299,14 @@ ALIAS relations AS relation;
 
 -- Define a rule for paternal half-siblings that returns character IDs
 
-DEFINE PaternalHalfSiblings(?x, ?y)
+DEFINE
+    PaternalHalfSiblings(?x, ?y)
 WHERE
- relation(from_id=?x, to_id=?x_bf, type="BiologicalFather"),
- relation(from_id=?y, to_id=?y_bf, type="BiologicalFather"),
- relation(from_id=?x, to_id=?x_m, type="Mother"),
- relation(from_id=?y, to_id=?y_m, type="Mother"),
- (?x_m != ?y_m);
+    relation(from_id=?x, to_id=?x_bf, type="BiologicalFather")
+    relation(from_id=?y, to_id=?y_bf, type="BiologicalFather")
+    relation(from_id=?x, to_id=?x_m, type="Mother")
+    relation(from_id=?y, to_id=?y_m, type="Mother")
+    (?x_m != ?y_m);
 """
 
 # Instantiate the Drolta Engine
@@ -319,14 +320,14 @@ q_engine.execute_script(DROLTA_SCRIPT)
 # Addam.
 result = q_engine.execute(
     """
- FIND
- ?siblingId, ?siblingName
- WHERE
- PaternalHalfSiblings(x=?adam_id, x=?siblingId),
- character(id=?character_id, name="Addam"),
- character(id=?siblingId, name=?siblingName)
- ORDER BY ?siblingId;
- """
+    FIND
+        ?siblingId, ?siblingName
+    WHERE
+        PaternalHalfSiblings(x=?adam_id, x=?siblingId)
+        character(id=?character_id, name="Addam")
+        character(id=?siblingId, name=?siblingName)
+    ORDER BY ?siblingId;
+    """
 )
 
 # Get the actual rows in the result. The order of the columns is the
@@ -360,11 +361,11 @@ Queries are the main focus of Drolta. They enable users to search for informatio
 
 ```plaintext
 FIND
- ?siblingId, ?siblingName
+    ?siblingId, ?siblingName
 WHERE
- PaternalHalfSiblings(x=?adam_id, x=?siblingId),
- character(id=?character_id, name="Addam"),
- character(id=?siblingId, name=?siblingName)
+    PaternalHalfSiblings(x=?adam_id, x=?siblingId),
+    character(id=?character_id, name="Addam"),
+    character(id=?siblingId, name=?siblingName)
 ORDER BY ?siblingId;
 ```
 
@@ -414,10 +415,10 @@ You can access this table using the `character` predicate and setting any of the
 
 ```plaintext
 FIND
- ?character_id,
- ?name
+    ?character_id,
+    ?name
 WHERE
- characters(id=?character_id, name=?name, house="Targaryen")
+    characters(id=?character_id, name=?name, house="Targaryen")
 ```
 
 ### Rules
@@ -431,13 +432,14 @@ Currently, rules may only have one definition (unlike Prolog). Redefining a rule
 Below is an example of a rule for finding characters in a game who are paternal half-siblings (they share the father but not the same mother).
 
 ```plaintext
-DEFINE PaternalHalfSiblings(?x, ?y)
+DEFINE
+    PaternalHalfSiblings(?x, ?y)
 WHERE
- relation(from_id=?x, to_id=?x_bf, type="BiologicalFather"),
- relation(from_id=?y, to_id=?y_bf, type="BiologicalFather"),
- relation(from_id=?x, to_id=?x_m, type="Mother"),
- relation(from_id=?y, to_id=?y_m, type="Mother"),
- (?x_m != ?y_m);
+    relation(from_id=?x, to_id=?x_bf, type="BiologicalFather")
+    relation(from_id=?y, to_id=?y_bf, type="BiologicalFather")
+    relation(from_id=?x, to_id=?x_m, type="Mother")
+    relation(from_id=?y, to_id=?y_m, type="Mother")
+    (?x_m != ?y_m);
 ```
 
 ### Aliases
@@ -520,10 +522,10 @@ The example code below is a query that uses the `AND` keyword to check that char
 
 ```plaintext
 FIND
- ?character_id, ?age
+    ?character_id, ?age
 WHERE
- character(id=?character_id, age=?age, house=?house),
- ((?age > 32) AND (?house = "Belmont"))
+    character(id=?character_id, age=?age, house=?house)
+    ((?age > 32) AND (?house = "Belmont"));
 ```
 
 ### OR-Statements
@@ -542,10 +544,10 @@ The example code below is a query that uses the `OR` keyword to check that chara
 
 ```plaintext
 FIND
- ?character_id, ?house
+    ?character_id, ?house
 WHERE
- character(id=?character_id, house=?house),
- ((?house = "Targaryen") OR (?house = "Belmont"))
+    character(id=?character_id, house=?house)
+    ((?house = "Targaryen") OR (?house = "Belmont"));
 ```
 
 ### NOT-Statements
@@ -572,12 +574,12 @@ Below is an example of `NOT` being used with a rule. In the query, we use `NOT` 
 
 ```plaintext
 FIND
- ?x, ?y
+    ?x, ?y
 WHERE
- character(id=?x)
- character(id=?y)
- HalfSiblings(character_a=?x, character_b=?y)
- NOT FromSameHouse(character_a=?x, character_b=?y)
+    character(id=?x)
+    character(id=?y)
+    HalfSiblings(character_a=?x, character_b=?y)
+    NOT FromSameHouse(character_a=?x, character_b=?y);
 ```
 
 ### ORDER BY
@@ -596,10 +598,10 @@ Get a table of character names and life stages, then order the rows alphabetical
 
 ```plaintext
 FIND
- ?name,
- ?life_stage
+    ?name,
+    ?life_stage
 WHERE
- characters(name=?name, life_stage=?life_stage)
+    characters(name=?name, life_stage=?life_stage)
 ORDER BY ?name;
 ```
 
@@ -619,10 +621,10 @@ Get a table of character names and life stages, then group the rows by life stag
 
 ```plaintext
 FIND
- ?name,
- ?life_stage
+    ?name,
+    ?life_stage
 WHERE
- characters(name=?name, life_stage=?life_stage)
+    characters(name=?name, life_stage=?life_stage)
 GROUP BY ?life_stage;
 ```
 
@@ -642,10 +644,10 @@ Get a table of character names and life stages, and limit the result to the firs
 
 ```plaintext
 FIND
- ?name,
- ?life_stage
+    ?name,
+    ?life_stage
 WHERE
- characters(name=?name, life_stage=?life_stage)
+    characters(name=?name, life_stage=?life_stage)
 LIMIT 5;
 ```
 

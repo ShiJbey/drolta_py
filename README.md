@@ -78,83 +78,82 @@ FROM
     families f0
 WHERE
  (
- (
-      EXISTS (
-        SELECT
-          1
-        FROM
- family_heads fh
-        WHERE
-          fh.head = c0.uid
-          AND fh.family = f0.uid
-          AND fh.end_date = NULL
- )
-      AND EXISTS (
-        SELECT
-          1
-        FROM
- family_heads fh
-        WHERE
-          fh.head = c1.uid
-          AND fh.family = f0.uid
-          AND fh.end_date = NULL
- )
- )
+    (
+        EXISTS (
+            SELECT
+                1
+            FROM
+                family_heads fh
+            WHERE
+                fh.head = c0.uid
+                AND fh.family = f0.uid
+                AND fh.end_date = NULL
+        )
+        AND EXISTS (
+            SELECT
+                1
+            FROM
+                family_heads fh
+            WHERE
+                fh.head = c1.uid
+                AND fh.family = f0.uid
+                AND fh.end_date = NULL
+        )
+    )
     AND EXISTS (
-      WITH
- Rivals AS (
-          SELECT
-            r1.character_id AS character_a_uid,
-            r1.target_id AS character_b_uid
-          FROM
- relations r1
-          JOIN relations r2 ON
- (
-            r1.character_id = r2.target_id
-            AND r2.target_id = r1.character_id
-            AND r1.relation_type = "Rival"
-            AND r2.relation_type = "Rival"
- )
- )
-      SELECT
-        1
-      FROM
- Rivals
-      WHERE
- character_a_uid = c0.uid
-        AND character_b_uid = c1.uid
- )
+        WITH
+            Rivals AS (
+                SELECT
+                    r1.character_id AS character_a_uid,
+                    r1.target_id AS character_b_uid
+                FROM
+                    relations r1
+                JOIN relations r2 ON
+                (
+                    r1.character_id = r2.target_id
+                    AND r2.target_id = r1.character_id
+                    AND r1.relation_type = "Rival"
+                    AND r2.relation_type = "Rival"
+                )
+            )
+        SELECT
+            1
+        FROM
+            Rivals
+        WHERE
+            character_a_uid = c0.uid
+            AND character_b_uid = c1.uid
+    )
     AND EXISTS (
-      WITH
- HalfSiblings AS (
-          SELECT
-            s.character_id AS sibling1_uid,
-            s.sibling_id AS sibling2_uid
-          FROM
- siblings s
-            JOIN characters c1 ON s.character_id = c1.uid
-            JOIN characters c2 ON s.sibling_id = c2.uid
-          WHERE
- (
-              c1.biological_father = c2.biological_father
-              AND c1.mother != c2.mother
- )
-            OR (
-              c1.mother = c2.mother
-              AND c1.biological_father != c2.biological_father
- )
- )
-      SELECT
-        1
-      FROM
- HalfSiblings
-      WHERE
- sibling1_uid = c0.uid
-        AND sibling2_uid = c1.uid
- )
- ) AND c0.uid != c1.uid
+        WITH
+            HalfSiblings AS (
+                SELECT
+                    s.character_id AS sibling1_uid,
+                    s.sibling_id AS sibling2_uid
+                FROM
+                    siblings s
+                    JOIN characters c1 ON s.character_id = c1.uid
+                    JOIN characters c2 ON s.sibling_id = c2.uid
+                WHERE
+                (
+                    c1.biological_father = c2.biological_father
+                    AND c1.mother != c2.mother
+                )
+                OR (
+                    c1.mother = c2.mother
+                    AND c1.biological_father != c2.biological_father
+                )
+            )
+        SELECT
+            1
+        FROM
+            HalfSiblings
+        WHERE
+            sibling1_uid = c0.uid  AND sibling2_uid = c1.uid
+    )
+) AND c0.uid != c1.uid
 LIMIT
-  10;
+    10;
 ```
 
 ### Installation

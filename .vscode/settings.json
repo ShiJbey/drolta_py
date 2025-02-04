@@ -1,12 +1,20 @@
 {
     "[python]": {
         "editor.formatOnSave": true,
-        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.codeActionsOnSave": {
             "source.fixAll": "explicit",
             // "source.organizeImports": "explicit"
         }
     },
+    "python.analysis.exclude": [
+        "**/node_modules", 
+        "**/__pycache__", 
+        ".git", 
+        "**/build", 
+        "venv/**", 
+        "src/drolta/parsing/**"
+    ],
     "cSpell.words": [
         "Datalog",
         "Drolta"

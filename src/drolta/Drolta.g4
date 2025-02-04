@@ -1,4 +1,4 @@
-grammar drolta;
+grammar Drolta;
 
 // Parser Rules
 
@@ -18,7 +18,7 @@ query: find_clause where_clause post_processing_statements*;
 
 find_clause: FIND (VARIABLE (COMMA VARIABLE)*)?;
 
-where_clause: WHERE (where_statement (COMMA where_statement)*)?;
+where_clause: WHERE (where_statement (where_statement)*)?;
 
 post_processing_statements:
 	order_by_statement
@@ -53,12 +53,12 @@ predicate_statement:
 predicate_param: IDENTIFIER EQ atom;
 
 atom:
-	VARIABLE			# VariableAtom
-	| INT_LITERAL		# IntAtom
-	| FLOAT_LITERAL		# FloatAtom
-	| STRING_LITERAL	# StringAtom
-	| BOOLEAN_LITERAL	# BooleanAtom
-	| NULL				# NullAtom;
+	VARIABLE
+	| INT_LITERAL
+	| FLOAT_LITERAL
+	| STRING_LITERAL
+	| BOOLEAN_LITERAL
+	| NULL				;
 
 // LEXER RULES
 

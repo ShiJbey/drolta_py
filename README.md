@@ -189,11 +189,10 @@ LIMIT
 
 ### Installation
 
-This package is not yet available on PyPI. Until then, please install using the GitHub
-link.
+This package can be installed from PyPI.
 
 ```bash
-pip install git+https://github.com/ShiJbey/drolta_py
+pip install drolta
 ```
 
 You can test the installation by printing the current drolta version in the Python REPL.
@@ -341,7 +340,7 @@ WHERE
     relation(from_id=?y, to_id=?y_bf, type="BiologicalFather")
     relation(from_id=?x, to_id=?x_m, type="Mother")
     relation(from_id=?y, to_id=?y_m, type="Mother")
-    (?x_m != ?y_m);
+    ((?x_m != ?y_m) AND (?x != ?y));
 """
 
 # Instantiate the Drolta Engine
@@ -402,8 +401,8 @@ the database. Drolta's query engine is an alternative to executing queries in ra
 FIND
     ?siblingId, ?siblingName
 WHERE
-    PaternalHalfSiblings(x=?adam_id, x=?siblingId),
-    character(id=?character_id, name="Addam"),
+    PaternalHalfSiblings(x=?adam_id, x=?siblingId)
+    character(id=?character_id, name="Addam")
     character(id=?siblingId, name=?siblingName)
 ORDER BY ?siblingId;
 ```
@@ -789,7 +788,7 @@ repository, please ensure all the tests pass before making a pull request. Thank
 # Step 1: Install dependencies for testing and development (PyTest)
 python -m pip install -e ".[development]"
 
-# Step 2: Run Pytest
+# Step 2: Run PyTest
 pytest
 ```
 

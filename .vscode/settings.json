@@ -19,8 +19,6 @@
     "src/drolta/parsing/**"
   ],
   "cSpell.words": [
-    "Datalog",
-    "Drolta",
     "Addam",
     "Aemma",
     "Aemond",
@@ -29,10 +27,13 @@
     "Arryn",
     "baela",
     "Baratheon",
+    "Belmont",
     "corlys",
     "Cristen",
     "Daenerys",
+    "Datalog",
     "debuffs",
+    "Drolta",
     "harwin",
     "Hightower",
     "interestingness",
@@ -40,12 +41,12 @@
     "jace",
     "laena",
     "Laenor",
+    "Lannister",
     "marilda",
     "rhaenyra",
     "Rhaenys",
     "Targaryen",
     "Velaryon",
-    "Viserys",
-    "Belmont"
+    "Viserys"
   ]
 }

@@ -8,7 +8,6 @@ provided in the README.
 import logging
 import sqlite3
 
-import drolta
 import drolta.engine
 
 

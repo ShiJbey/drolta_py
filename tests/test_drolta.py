@@ -24,7 +24,7 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
         DROP TABLE IF EXISTS characters;
         DROP TABLE IF EXISTS houses;
         DROP TABLE IF EXISTS relations;
-        
+
         CREATE TABLE characters (
             id INTEGER PRIMARY KEY NOT NULL,
             name TEXT,
@@ -34,14 +34,14 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
             is_alive INTEGER,
             FOREIGN KEY (house_id) REFERENCES houses(id)
         ) STRICT;
-        
+
         CREATE TABLE houses (
             id INTEGER NOT NULL PRIMARY KEY,
             name TEXT NOT NULL,
             reputation INT NOT NULL,
             is_noble INT NOT NULL
         ) STRICT;
-        
+
         CREATE TABLE relations (
             from_id INTEGER NOT NULL,
             to_id INTEGER NOT NULL,
@@ -61,7 +61,7 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
         """,
         [
             (1, "Rhaenyra", 1, "F", "Adult", 1),
-            (2, "Leanor", 2, "M", "Adult", 1),
+            (2, "Laenor", 2, "M", "Adult", 1),
             (3, "Harwin", 3, "M", "Adult", 1),
             (4, "Jacaerys", 2, "M", "Teen", 1),
             (5, "Addam", None, "M", "Teen", 1),
@@ -109,8 +109,8 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
             (4, 2, "Father"),  # Jace -> Laenor
             (4, 3, "BiologicalFather"),  # Jace -> Harwin
             (5, 6, "BiologicalFather"),  # Addam -> Corlys
-            (2, 6, "BiologicalFather"),  # Leanor -> Corlys
-            (2, 6, "Father"),  # Leanor -> Corlys
+            (2, 6, "BiologicalFather"),  # Laenor -> Corlys
+            (2, 6, "Father"),  # Laenor -> Corlys
             (5, 7, "Mother"),  # Addam -> Marilda
             (8, 7, "Mother"),  # Alyn -> Marilda
             (8, 6, "BiologicalFather"),  # Alyn -> Corlys
@@ -180,7 +180,7 @@ def test_define_rule_alias() -> None:
     engine.execute_script(
         """
         ALIAS FromNobleFamily as IsNobility;
-        
+
         DEFINE
             FromNobleFamily(?x)
         WHERE
@@ -249,13 +249,13 @@ def test_composite_rules() -> None:
             IsVampire(?x)
         WHERE
             traits(character_id=?x, trait="Vampire");
-        
+
         DEFINE
             FromNobleFamily(?x)
         WHERE
             characters(id=?x, family_id=?family_id)
             family(id=?family_id, is_noble=TRUE);
-            
+
         DEFINE
             NobleVampire(?x)
         WHERE
@@ -364,7 +364,7 @@ def test_multi_predicate_query() -> None:
 
     result = engine.execute(
         """
-        FIND 
+        FIND
             ?x
         WHERE
             characters(id=?x, family_id=?family_id)
@@ -388,7 +388,7 @@ def test_eq_filter() -> None:
 
     result = engine.execute(
         """
-        FIND 
+        FIND
             ?x
         WHERE
             characters(id=?x, life_stage=?life_stage, family_id=?family_id)
@@ -413,7 +413,7 @@ def test_neq_filter() -> None:
 
     result = engine.execute(
         """
-        FIND 
+        FIND
             ?x
         WHERE
             characters(id=?x, life_stage=?life_stage, family_id=?family_id)
@@ -454,7 +454,7 @@ def test_membership_filter() -> None:
 
     result = engine.execute(
         """
-        FIND 
+        FIND
             ?x
         WHERE
             characters(id=?x, life_stage=?life_stage, family_id=?family_id)
@@ -479,7 +479,7 @@ def test_null_check() -> None:
 
     result = engine.execute(
         """
-        FIND 
+        FIND
             ?x
         WHERE
             characters(id=?x, family_id=NULL);

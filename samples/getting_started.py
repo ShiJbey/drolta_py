@@ -59,7 +59,7 @@ def initialize_samples_data(db: sqlite3.Connection) -> None:
         """,
         [
             (1, "Rhaenyra", 1, "F", "Adult", 1),
-            (2, "Leanor", 2, "M", "Adult", 1),
+            (2, "Laenor", 2, "M", "Adult", 1),
             (3, "Harwin", 3, "M", "Adult", 1),
             (4, "Jacaerys", 2, "M", "Teen", 1),
             (5, "Addam", None, "M", "Teen", 1),
@@ -107,8 +107,8 @@ def initialize_samples_data(db: sqlite3.Connection) -> None:
             (4, 2, "Father"),  # Jace -> Laenor
             (4, 3, "BiologicalFather"),  # Jace -> Harwin
             (5, 6, "BiologicalFather"),  # Addam -> Corlys
-            (2, 6, "BiologicalFather"),  # Leanor -> Corlys
-            (2, 6, "Father"),  # Leanor -> Corlys
+            (2, 6, "BiologicalFather"),  # Laenor -> Corlys
+            (2, 6, "Father"),  # Laenor -> Corlys
             (5, 7, "Mother"),  # Addam -> Marilda
             (8, 7, "Mother"),  # Alyn -> Marilda
             (8, 6, "BiologicalFather"),  # Alyn -> Corlys
@@ -153,7 +153,7 @@ def main() -> None:
         """
         ALIAS characters AS Character;
         ALIAS relations AS Relation;
-        
+
         DEFINE
             PaternalHalfSiblings(?x, ?y)
         WHERE

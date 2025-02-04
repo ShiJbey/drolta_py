@@ -11,7 +11,6 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, cast
 
 import antlr4
-
 from drolta.parsing.DroltaLexer import DroltaLexer
 from drolta.parsing.DroltaListener import DroltaListener
 from drolta.parsing.DroltaParser import DroltaParser

@@ -1,6 +1,5 @@
 # Generated from ./src/drolta/Drolta.g4 by ANTLR 4.13.2
 from antlr4 import *
-
 from drolta.parsing.DroltaParser import DroltaParser
 
 

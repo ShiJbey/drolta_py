@@ -2,7 +2,8 @@
 
 ![Supported Python Versions badge](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12-blue)
 ![3-Clause BSD License badge](https://img.shields.io/badge/License-BSD%203--Clause-green)
-![Black formatter badge](https://img.shields.io/badge/code%20style-ruff-black)
+[![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
+[![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
 
 Drolta is an experimental SQLite query engine for wiring more simplified, composable,
 and declarative queries than one could in raw SQL. Drolta was initially developed to
@@ -26,33 +27,33 @@ drolta with new query rules to help build more complex queries.
 ## Table of Contents
 
 - [Drolta: A SQLite Query Engine for Python](#drolta-a-sqlite-query-engine-for-python)
-    - [Table of Contents](#table-of-contents)
-    - [📖 Documentation](#-documentation)
-        - [Why Drolta?](#why-drolta)
-        - [Installation](#installation)
-        - [Getting Started](#getting-started)
-        - [Design Philosophy](#design-philosophy)
-        - [Queries](#queries)
-        - [Predicates](#predicates)
-        - [Rules](#rules)
-        - [Aliases](#aliases)
-        - [Filter Statements](#filter-statements)
-            - [Comparison Filtering](#comparison-filtering)
-            - [Membership filtering](#membership-filtering)
-        - [NULL Checking](#null-checking)
-        - [AND-Statements](#and-statements)
-        - [OR-Statements](#or-statements)
-        - [NOT-Statements](#not-statements)
-        - [ORDER BY](#order-by)
-        - [GROUP BY](#group-by)
-        - [LIMIT](#limit)
-        - [Comments](#comments)
-    - [🧪 Running Unit Tests](#-running-unit-tests)
-    - [🎨 Syntax Highlighting Support](#-syntax-highlighting-support)
-    - [🏆 Ports and Applications](#-ports-and-applications)
-    - [🧱 Editing the Parser](#-editing-the-parser)
-    - [📦 Packaging](#-packaging)
-    - [🤝 License](#-license)
+  - [Table of Contents](#table-of-contents)
+  - [📖 Documentation](#-documentation)
+    - [Why Drolta?](#why-drolta)
+    - [Installation](#installation)
+    - [Getting Started](#getting-started)
+    - [Design Philosophy](#design-philosophy)
+    - [Queries](#queries)
+    - [Predicates](#predicates)
+    - [Rules](#rules)
+    - [Aliases](#aliases)
+    - [Filter Statements](#filter-statements)
+      - [Comparison Filtering](#comparison-filtering)
+      - [Membership filtering](#membership-filtering)
+    - [NULL Checking](#null-checking)
+    - [AND-Statements](#and-statements)
+    - [OR-Statements](#or-statements)
+    - [NOT-Statements](#not-statements)
+    - [ORDER BY](#order-by)
+    - [GROUP BY](#group-by)
+    - [LIMIT](#limit)
+    - [Comments](#comments)
+  - [🧪 Running Unit Tests](#-running-unit-tests)
+  - [🎨 Syntax Highlighting Support](#-syntax-highlighting-support)
+  - [🏆 Ports and Applications](#-ports-and-applications)
+  - [🧱 Editing the Parser](#-editing-the-parser)
+  - [📦 Packaging](#-packaging)
+  - [🤝 License](#-license)
 
 ## 📖 Documentation
 
@@ -247,7 +248,7 @@ cursor.executemany(
     """,
     [
         (1, "Rhaenyra", "Targaryen", "F", "Adult", 1),
-        (2, "Leanor", "Velaryon", "M", "Adult", 1),
+        (2, "Laenor", "Velaryon", "M", "Adult", 1),
         (3, "Harwin", "Strong", "M", "Adult", 1),
         (4, "Jacaerys", "Velaryon", "M", "Teen", 1),
         (5, "Addam", "", "M", "Teen", 1),
@@ -292,8 +293,8 @@ cursor.executemany(
         (4, 2, "Father"),  # Jace -> Laenor
         (4, 3, "BiologicalFather"),  # Jace -> Harwin
         (5, 6, "BiologicalFather"),  # Addam -> Corlys
-        (2, 6, "BiologicalFather"),  # Leanor -> Corlys
-        (2, 6, "Father"),  # Leanor -> Corlys
+        (2, 6, "BiologicalFather"),  # Laenor -> Corlys
+        (2, 6, "Father"),  # Laenor -> Corlys
         (5, 7, "Mother"),  # Addam -> Marilda
         (8, 7, "Mother"),  # Alyn -> Marilda
         (8, 6, "BiologicalFather"),  # Alyn -> Corlys

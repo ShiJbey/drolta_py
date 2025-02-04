@@ -24,7 +24,7 @@ license-files = { paths = ["LICENSE"] }
 dependencies = ["antlr4-python3-runtime>=4.13.2"]
 
 [project.optional-dependencies]
-development = ["ruff", "hatchling", "build", "pytest", "antlr4-tools"]
+development = ["isort", "black", "hatchling", "build", "pytest", "antlr4-tools"]
 
 [project.urls]
 Homepage = "https://github.com/ShiJbey/drolta_py/"
@@ -45,3 +45,9 @@ path = "src/drolta/__init__.py"
 [tool.pytest.ini_options]
 minversion = "6.0"
 testpaths = ["tests"]
+
+[tool.isort]
+profile = "black"
+default_section = "THIRDPARTY"
+known_first_party = "minerva"
+src_paths = ["src/minerva", "tests", "samples"]

@@ -152,6 +152,7 @@ def main() -> None:
         """
         ALIAS characters AS Character;
         ALIAS relations AS Relation;
+        ALIAS houses AS House;
 
         DEFINE
             PaternalHalfSiblings(?x, ?y)
@@ -176,8 +177,42 @@ def main() -> None:
         """
     )
 
-    for sibling_id, sibling_name in result:
+    print("Addam's Half Siblings:")
+    for sibling_id, sibling_name in result.fetchall():
         print(f"ID: {sibling_id}, Name: {sibling_name}")
+
+    result = engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    )
+
+    print("Addam's Half Siblings:")
+    for sibling_id, sibling_name in result.fetchall():
+        print(f"ID: {sibling_id}, Name: {sibling_name}")
+
+    # result = engine.execute(
+    #     """
+    #     FIND
+    #         ?id, ?name
+    #     WHERE
+    #         Character(id=?id, name=?name, house_id=?house_id)
+    #         House(id=?house_id, name=?family_name)
+    #         ((?family_name = "Targaryen") OR (?family_name = "Velaryon"))
+    #         -- (?family_name IN ["Targaryen", "Velaryon"]);
+    #     ORDER BY ?id;
+    #     """
+    # )
+
+    # print("Targaryens and Velaryons:")
+    # for character_id, character_name in result:
+    #     print(f"ID: {character_id}, Name: {character_name}")
 
     db.close()
 

@@ -5,7 +5,8 @@ from __future__ import annotations
 import dataclasses
 import enum
 import logging
-from typing import cast
+import sqlite3
+from typing import Any, Generator, Optional, cast
 
 from drolta.ast import (
     ASTVisitor,
@@ -78,6 +79,15 @@ def has_alias_cycle(aliases: dict[str, str]) -> tuple[bool, str]:
     return False, ""
 
 
+def is_connection_closed(conn: sqlite3.Connection):
+    """Check if a database connection is active."""
+    try:
+        conn.in_transaction
+        return False
+    except sqlite3.ProgrammingError:
+        return True
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class TempResult:
     """Information about an intermediate result of a query."""
@@ -91,6 +101,61 @@ class TempResult:
     def get_common_vars(b: TempResult, a: TempResult) -> list[str]:
         """Get common variables between two temp results."""
         return sorted(a.output_vars.intersection(b.output_vars))
+
+
+class DroltaResult:
+    """The result of a Drolta Query.
+
+    This class wraps a sqlite3 Cursor object to ensure that all temporary
+    tables are removed at the start of a new query.
+    """
+
+    _cursor: Optional[sqlite3.Cursor]
+
+    def __init__(self, cursor: Optional[sqlite3.Cursor] = None) -> None:
+        self._cursor = cursor
+
+    def fetchall(self) -> list[Any]:
+        """Get all results from the last query."""
+        if self._cursor is None:
+            return []
+
+        result = self._cursor.fetchall()
+        self._cursor.close()
+        return result
+
+    def fetchmany(self, size: int) -> Generator[list[Any], Any, None]:
+        """Fetch the next batch of results."""
+        if self._cursor is None:
+            yield []
+            return
+
+        next_batch = self._cursor.fetchmany(size)
+
+        while next_batch:
+            yield next_batch
+            next_batch = self._cursor.fetchmany(size)
+
+        self._cursor.close()
+
+    def fetchone(self) -> Generator[Any, Any, None]:
+        """Fetch one result at a time."""
+        if self._cursor is None:
+            return
+
+        next_row = self._cursor.fetchone()
+
+        while next_row:
+            yield next_row
+            next_row = self._cursor.fetchone()
+
+        self._cursor.close()
+
+    def __del__(self):
+        if self._cursor is not None and not is_connection_closed(
+            self._cursor.connection
+        ):
+            self._cursor.close()
 
 
 @dataclasses.dataclass(slots=True)
@@ -122,24 +187,31 @@ class Interpreter(ASTVisitor):
     TEMP_TABLE_PREFIX = "temp__"
     """Name prefix for all temporary tables created by the query engine."""
 
-    __slots__ = ("engine_data", "mode", "scope_stack")
+    __slots__ = ("db", "engine_data", "mode", "scope_stack", "result")
 
+    db: sqlite3.Connection
+    """Database connection."""
     engine_data: EngineData
     """State data for the query engine."""
     mode: InterpreterMode
     """Current interpreter mode."""
     scope_stack: list[Scope]
     """Stack of scopes used during query evaluation."""
+    result: DroltaResult
+    """Cursor with results."""
 
     def __init__(
         self,
+        db: sqlite3.Connection,
         engine_data: EngineData,
         mode: InterpreterMode = InterpreterMode.SCRIPT_EVAL,
     ) -> None:
         super().__init__()
+        self.db = db
         self.engine_data = engine_data
         self.mode = mode
         self.scope_stack = []
+        self.result = DroltaResult()
 
     def visit_declare_alias(self, node: DeclareAliasExpression):
         if self.mode == InterpreterMode.QUERY_EVAL:
@@ -174,7 +246,7 @@ class Interpreter(ASTVisitor):
         if self.mode == InterpreterMode.SCRIPT_EVAL:
             raise ProgrammingError("Queries not allowed while loading scripts.")
 
-        self.scope_stack.clear()
+        self.clear_scope_stack()
 
         # This is where the magic will happen.
         _logger.debug("Evaluating query.")
@@ -236,13 +308,15 @@ class Interpreter(ASTVisitor):
 
         _logger.debug("Calculating Final Output:\n%s", sql_statement)
 
-        cursor = self.engine_data.db.cursor()
+        cursor = self.db.cursor()
 
         result = cursor.execute(sql_statement)
 
-        self.engine_data.result = result
+        self.result = DroltaResult(cursor=result)
 
     def visit_program(self, node: ProgramNode):
+        self.result = DroltaResult()
+
         for child in node.children:
             self.visit(child)
 
@@ -277,7 +351,7 @@ class Interpreter(ASTVisitor):
 
         self._force_join_all_tables()
 
-        result_table = current_scope.tables[-1]
+        result_table = current_scope.tables.pop()
 
         self.pop_scope()
 
@@ -294,11 +368,15 @@ class Interpreter(ASTVisitor):
 
         _logger.debug("Calculating Rule Output:\n%s", sql_temp_table_statement)
 
-        cursor = self.engine_data.db.cursor()
+        cursor = self.db.cursor()
 
         cursor.execute(sql_temp_table_statement)
 
-        self.engine_data.db.commit()
+        cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
+
+        self.db.commit()
+
+        cursor.close()
 
         self.get_scope().tables.append(
             TempResult(table_name=table_name, output_vars=set(output_vars))
@@ -336,11 +414,13 @@ class Interpreter(ASTVisitor):
 
         _logger.debug("Executing predicate select:\n%s", sql_temp_table_statement)
 
-        cursor = self.engine_data.db.cursor()
+        cursor = self.db.cursor()
 
         cursor.execute(sql_temp_table_statement)
 
-        self.engine_data.db.commit()
+        self.db.commit()
+
+        cursor.close()
 
         current_scope.tables.append(
             TempResult(table_name=table_name, output_vars=set(output_vars))
@@ -376,14 +456,16 @@ class Interpreter(ASTVisitor):
 
         _logger.debug("Filtering Output:\n%s", sql_temp_table_statement)
 
-        cursor = self.engine_data.db.cursor()
+        cursor = self.db.cursor()
 
         cursor.execute(sql_temp_table_statement)
 
         # delete the old temp_table
         cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
 
-        self.engine_data.db.commit()
+        self.db.commit()
+
+        cursor.close()
 
         self.get_scope().tables.pop()
 
@@ -444,7 +526,7 @@ class Interpreter(ASTVisitor):
 
             _logger.debug("Joining Not Join:\n%s", sql_temp_table_statement)
 
-            cursor = self.engine_data.db.cursor()
+            cursor = self.db.cursor()
 
             cursor.execute(sql_temp_table_statement)
 
@@ -452,7 +534,9 @@ class Interpreter(ASTVisitor):
 
             cursor.execute(f"DROP TABLE IF EXISTS {last_table.table_name}")
 
-            self.engine_data.db.commit()
+            self.db.commit()
+
+            cursor.close()
 
             self.get_scope().tables.pop()
 
@@ -505,7 +589,7 @@ class Interpreter(ASTVisitor):
 
             _logger.debug("Joining All Tables:\n%s", sql_temp_table_statement)
 
-            cursor = self.engine_data.db.cursor()
+            cursor = self.db.cursor()
 
             cursor.execute(sql_temp_table_statement)
 
@@ -515,7 +599,9 @@ class Interpreter(ASTVisitor):
 
             current_scope.tables.clear()
 
-            self.engine_data.db.commit()
+            self.db.commit()
+
+            cursor.close()
 
             current_scope.tables.append(
                 TempResult(table_name=table_name, output_vars=output_vars)
@@ -532,6 +618,7 @@ class Interpreter(ASTVisitor):
             shared_table_indexes: set[int] = set()
             output_vars: set[str] = set(last_table.output_vars)
             have_shared: list[tuple[int, list[str]]] = []
+
             for table_idx, other_table in enumerate(current_scope.tables[:-1]):
                 shared_vars = TempResult.get_common_vars(last_table, other_table)
                 if shared_vars:
@@ -566,7 +653,7 @@ class Interpreter(ASTVisitor):
 
                 _logger.debug("Joining Tables:\n%s", sql_temp_table_statement)
 
-                cursor = self.engine_data.db.cursor()
+                cursor = self.db.cursor()
 
                 cursor.execute(sql_temp_table_statement)
 
@@ -580,7 +667,9 @@ class Interpreter(ASTVisitor):
 
                         cursor.execute(f"DROP TABLE IF EXISTS {table.table_name};")
 
-                self.engine_data.db.commit()
+                self.db.commit()
+
+                cursor.close()
 
                 current_scope.tables.append(
                     TempResult(table_name=table_name, output_vars=output_vars)
@@ -660,4 +749,23 @@ class Interpreter(ASTVisitor):
 
     def pop_scope(self) -> Scope:
         """Pop the current scope."""
+        self.destroy_temporary_tables()
         return self.scope_stack.pop()
+
+    def clear_scope_stack(self) -> None:
+        """Clear all scopes from the stack."""
+
+        while self.scope_stack:
+            self.pop_scope()
+
+    def destroy_temporary_tables(self) -> None:
+        """Destroy all temporary tables at the current scope."""
+
+        cursor = self.db.cursor()
+        scope = self.get_scope()
+
+        while scope.tables:
+            table = scope.tables.pop()
+            cursor.execute(f"DROP TABLE IF EXISTS {table.table_name};")
+
+        self.db.commit()

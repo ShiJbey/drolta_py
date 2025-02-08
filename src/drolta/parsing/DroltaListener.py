@@ -1,10 +1,12 @@
-# Generated from ./src/drolta/Drolta.g4 by ANTLR 4.13.2
+# Generated from ./Drolta.g4 by ANTLR 4.13.2
 from antlr4 import *
+
 from drolta.parsing.DroltaParser import DroltaParser
 
 
 # This class defines a complete listener for a parse tree produced by DroltaParser.
 class DroltaListener(ParseTreeListener):
+
     # Enter a parse tree produced by DroltaParser#prog.
     def enterProg(self, ctx: DroltaParser.ProgContext):
         pass

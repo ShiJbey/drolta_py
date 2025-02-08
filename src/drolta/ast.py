@@ -11,6 +11,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional, cast
 
 import antlr4
+
 from drolta.parsing.DroltaLexer import DroltaLexer
 from drolta.parsing.DroltaListener import DroltaListener
 from drolta.parsing.DroltaParser import DroltaParser
@@ -273,7 +274,7 @@ class MembershipFilterExpression(ExpressionNode):
 
     def __str__(self) -> str:
         value_list = ", ".join(str(v) for v in self.values)
-        return f"({self.expr} in [{value_list}])"
+        return f"({self.expr} IN ({value_list}))"
 
 
 class PredicateExpression(ExpressionNode):

@@ -462,7 +462,7 @@ Let's use the `characters` table from the [Getting Started](#getting-started) sa
 an example. Inside SQLite, you would have something like the following:
 
 | id  | name     | house     | sex | life_stage | is_alive |
-|-----|----------|-----------|-----|------------|----------|
+| --- | -------- | --------- | --- | ---------- | -------- |
 | 1   | Rhaenyra | Targaryen | F   | Adult      | 1        |
 | 2   | Laenor   | Velaryon  | M   | Adult      | 1        |
 | 3   | Harwin   | Strong    | M   | Adult      | 1        |
@@ -812,7 +812,7 @@ Drolta uses [ANTLR4](https://www.antlr.org/) to generate its parser. If you modi
 for the parser.
 
 ```bash
-antlr4 -Dlanguage=Python3 -visitor -no-listener ./src/drolta/Drolta.g4 -o ./src/drolta/parsing
+antlr4 -Dlanguage=Python3 -listener -no-visitor ./src/drolta/Drolta.g4 -o ./src/drolta/parsing
 ```
 
 **WARNING:** This can cause breaking changes in the implementation that must be

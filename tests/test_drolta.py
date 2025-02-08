@@ -95,7 +95,6 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
             (3, "Strong", 50, 0),
             (4, "Cole", 50, 0),
             (5, "Hightower", 50, 1),
-            (6, "Belmont", 50, 1),
         ],
     )
 
@@ -186,8 +185,8 @@ def test_define_rule_alias() -> None:
         DEFINE
             FromNobleFamily(?x)
         WHERE
-            characters(id=?x, family_id=?family_id)
-            family(id=?family_id, is_noble=TRUE);
+            characters(id=?x, house_id=?house_id)
+            family(id=?house_id, is_noble=TRUE);
         """
     )
 
@@ -218,8 +217,8 @@ def test_define_rule() -> None:
         DEFINE
             FromNobleFamily(?x)
         WHERE
-            characters(id=?x, family_id=?family_id)
-            family(id=?family_id, is_noble=TRUE);
+            characters(id=?x, house_id=?house_id)
+            family(id=?house_id, is_noble=TRUE);
         """
     )
 
@@ -255,8 +254,8 @@ def test_composite_rules() -> None:
         DEFINE
             FromNobleFamily(?x)
         WHERE
-            characters(id=?x, family_id=?family_id)
-            family(id=?family_id, is_noble=TRUE);
+            characters(id=?x, house_id=?house_id)
+            family(id=?house_id, is_noble=TRUE);
 
         DEFINE
             NobleVampire(?x)
@@ -337,8 +336,8 @@ def test_rule_param_aliases() -> None:
         DEFINE
             FromNobleFamily(?x AS character_id)
         WHERE
-            characters(id=?x, family_id=?family_id)
-            family(id=?family_id, is_noble=TRUE);
+            characters(id=?x, house_id=?house_id)
+            family(id=?house_id, is_noble=TRUE);
         """
     )
 
@@ -369,8 +368,8 @@ def test_multi_predicate_query() -> None:
         FIND
             ?x
         WHERE
-            characters(id=?x, family_id=?family_id)
-            family(id=?family_id, is_noble=TRUE);
+            characters(id=?x, house_id=?house_id)
+            family(id=?house_id, is_noble=TRUE);
         """
     ).fetch_all()
 
@@ -393,8 +392,8 @@ def test_eq_filter() -> None:
         FIND
             ?x
         WHERE
-            characters(id=?x, life_stage=?life_stage, family_id=?family_id)
-            family(id=?family_id, name="Targaryen")
+            characters(id=?x, life_stage=?life_stage, house_id=?house_id)
+            family(id=?house_id, name="Targaryen")
             (?life_stage = "Adult");
         """
     ).fetch_all()
@@ -418,8 +417,8 @@ def test_neq_filter() -> None:
         FIND
             ?x
         WHERE
-            characters(id=?x, life_stage=?life_stage, family_id=?family_id)
-            family(id=?family_id, name="Targaryen")
+            characters(id=?x, life_stage=?life_stage, house_id=?house_id)
+            family(id=?house_id, name="Targaryen")
             (?life_stage != "Adult");
         """
     ).fetch_all()
@@ -454,18 +453,18 @@ def test_membership_filter() -> None:
 
     engine = drolta.engine.QueryEngine(db)
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND
             ?x
         WHERE
-            characters(id=?x, life_stage=?life_stage, family_id=?family_id)
-            family(id=?family_id, name=?family_name)
-            (?family_name IN ["Belmont", "Targaryen"]);
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, name=?family_name)
+            (?family_name IN ("Velaryon", "Targaryen"));
         """
     ).fetch_all()
 
-    # TODO: Add assert statements for an expected number of rows
+    assert len(rows) == 10
 
     db.close()
 
@@ -484,7 +483,7 @@ def test_null_check() -> None:
         FIND
             ?x
         WHERE
-            characters(id=?x, family_id=NULL);
+            characters(id=?x, house_id=NULL);
         """
     ).fetch_all()
 

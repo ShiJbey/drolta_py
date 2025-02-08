@@ -9,6 +9,8 @@ now.
 
 import sqlite3
 
+import pytest
+
 import drolta
 import drolta.engine
 from drolta.interpreter import has_alias_cycle
@@ -161,7 +163,7 @@ def test_define_predicate_alias() -> None:
         WHERE
             Character(?x, family="Targaryen");
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statement for an expected number of rows.
 
@@ -195,7 +197,7 @@ def test_define_rule_alias() -> None:
         WHERE
             IsNobility(?x);
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statement for an expected number of rows.
 
@@ -227,7 +229,7 @@ def test_define_rule() -> None:
         WHERE
             FromNobleFamily(?x);
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statement for an expected number of rows.
 
@@ -270,7 +272,7 @@ def test_composite_rules() -> None:
         WHERE
             NobleVampire(?x);
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statements for an expected number of rows
 
@@ -292,7 +294,7 @@ def test_single_predicate_query() -> None:
         WHERE
             Character(?x, family="Targaryen");
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statement for an expected number of rows.
 
@@ -314,7 +316,7 @@ def test_query_output_aliases() -> None:
         WHERE
             Character(?x, family="Targaryen");
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statement for an expected number of rows.
 
@@ -346,7 +348,7 @@ def test_rule_param_aliases() -> None:
         WHERE
             FromNobleFamily(?x);
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statement for an expected number of rows.
 
@@ -370,7 +372,7 @@ def test_multi_predicate_query() -> None:
             characters(id=?x, family_id=?family_id)
             family(id=?family_id, is_noble=TRUE);
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statements for an expected number of rows
 
@@ -395,7 +397,7 @@ def test_eq_filter() -> None:
             family(id=?family_id, name="Targaryen")
             (?life_stage = "Adult");
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statements for an expected number of rows
 
@@ -420,7 +422,7 @@ def test_neq_filter() -> None:
             family(id=?family_id, name="Targaryen")
             (?life_stage != "Adult");
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statements for an expected number of rows
 
@@ -461,7 +463,7 @@ def test_membership_filter() -> None:
             family(id=?family_id, name=?family_name)
             (?family_name IN ["Belmont", "Targaryen"]);
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statements for an expected number of rows
 
@@ -484,7 +486,7 @@ def test_null_check() -> None:
         WHERE
             characters(id=?x, family_id=NULL);
         """
-    ).fetchall()
+    ).fetch_all()
 
     # TODO: Add assert statements for an expected number of rows
 
@@ -521,3 +523,122 @@ def test_alias_cycle_detection() -> None:
     aliases["C"] = "F"
 
     assert has_alias_cycle(aliases) == (True, "B")
+
+
+def test_duplicate_queries() -> None:
+    """Test that running the same query twice does not throw duplicate table error."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    engine.execute_script(
+        """
+        ALIAS characters AS Character;
+        ALIAS relations AS Relation;
+        ALIAS houses AS House;
+
+        DEFINE
+            PaternalHalfSiblings(?x, ?y)
+        WHERE
+            Relation(from_id=?x, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?y, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?x, to_id=?x_m, type="Mother")
+            Relation(from_id=?y, to_id=?y_m, type="Mother")
+            ((?x_m != ?y_m) AND (?x != ?y));
+        """
+    )
+
+    engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    )
+
+    engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    )
+
+    db.close()
+
+
+def test_double_fetch_throws_error() -> None:
+    """Ensure that double fetching data throws an exception."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    engine.execute_script(
+        """
+        ALIAS characters AS Character;
+        ALIAS relations AS Relation;
+        ALIAS houses AS House;
+
+        DEFINE
+            PaternalHalfSiblings(?x, ?y)
+        WHERE
+            Relation(from_id=?x, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?y, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?x, to_id=?x_m, type="Mother")
+            Relation(from_id=?y, to_id=?y_m, type="Mother")
+            ((?x_m != ?y_m) AND (?x != ?y));
+        """
+    )
+
+    result = engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    )
+
+    result.fetch_all()
+
+    with pytest.raises(RuntimeError):
+        result.fetch_all()
+
+    result = engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    )
+
+    # Have to call next() on the generator. Otherwise, the user
+    # technically never read the data and it is still valid
+    # to call fetch_all().
+    next(result.fetch_chunks(20))
+
+    with pytest.raises(RuntimeError):
+        result.fetch_all()
+
+    db.close()

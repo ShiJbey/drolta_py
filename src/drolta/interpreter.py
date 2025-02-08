@@ -79,15 +79,6 @@ def has_alias_cycle(aliases: dict[str, str]) -> tuple[bool, str]:
     return False, ""
 
 
-def is_connection_closed(conn: sqlite3.Connection):
-    """Check if a database connection is active."""
-    try:
-        conn.in_transaction
-        return False
-    except sqlite3.ProgrammingError:
-        return True
-
-
 @dataclasses.dataclass(frozen=True, slots=True)
 class TempResult:
     """Information about an intermediate result of a query."""
@@ -110,13 +101,21 @@ class DroltaResult:
     tables are removed at the start of a new query.
     """
 
+    _has_read_data: bool
     _cursor: Optional[sqlite3.Cursor]
 
     def __init__(self, cursor: Optional[sqlite3.Cursor] = None) -> None:
+        self._has_read_data = False
         self._cursor = cursor
 
-    def fetchall(self) -> list[Any]:
+    def fetch_all(self) -> list[Any]:
         """Get all results from the last query."""
+
+        if self._has_read_data:
+            raise RuntimeError("Data already fetched from this result.")
+
+        self._has_read_data = True
+
         if self._cursor is None:
             return []
 
@@ -124,8 +123,14 @@ class DroltaResult:
         self._cursor.close()
         return result
 
-    def fetchmany(self, size: int) -> Generator[list[Any], Any, None]:
+    def fetch_chunks(self, size: int) -> Generator[list[Any], Any, None]:
         """Fetch the next batch of results."""
+
+        if self._has_read_data:
+            raise RuntimeError("Data already fetched from this result.")
+
+        self._has_read_data = True
+
         if self._cursor is None:
             yield []
             return
@@ -137,25 +142,6 @@ class DroltaResult:
             next_batch = self._cursor.fetchmany(size)
 
         self._cursor.close()
-
-    def fetchone(self) -> Generator[Any, Any, None]:
-        """Fetch one result at a time."""
-        if self._cursor is None:
-            return
-
-        next_row = self._cursor.fetchone()
-
-        while next_row:
-            yield next_row
-            next_row = self._cursor.fetchone()
-
-        self._cursor.close()
-
-    def __del__(self):
-        if self._cursor is not None and not is_connection_closed(
-            self._cursor.connection
-        ):
-            self._cursor.close()
 
 
 @dataclasses.dataclass(slots=True)

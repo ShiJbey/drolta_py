@@ -262,7 +262,7 @@ class ComparisonFilterExpression(BinaryExpression):
             if self.right.get_expression_type() == ExpressionType.NULL:
                 return f"({self.left} IS NOT {self.right})"
             else:
-                return f"({self.left} = {self.right})"
+                return f"({self.left} != {self.right})"
 
 
 class MembershipFilterExpression(ExpressionNode):

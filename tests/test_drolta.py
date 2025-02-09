@@ -428,6 +428,37 @@ def test_neq_filter() -> None:
 
     assert len(rows) == 3
 
+    engine.execute_script(
+        """
+        ALIAS characters AS Character;
+        ALIAS relations AS Relation;
+        ALIAS houses AS House;
+
+        DEFINE
+            PaternalHalfSiblings(?x, ?y)
+        WHERE
+            Relation(from_id=?x, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?y, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?x, to_id=?x_m, type="Mother")
+            Relation(from_id=?y, to_id=?y_m, type="Mother")
+            ((?x_m != ?y_m) AND (?x != ?y));
+        """
+    )
+
+    rows = engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    ).fetch_all()
+
+    assert len(rows) == 2
+
     db.close()
 
 

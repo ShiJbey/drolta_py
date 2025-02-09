@@ -10,71 +10,74 @@ else:
 
 def serializedATN():
     return [
-        4,1,39,195,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,
+        4,1,39,201,2,0,7,0,2,1,7,1,2,2,7,2,2,3,7,3,2,4,7,4,2,5,7,5,2,6,7,
         6,2,7,7,7,2,8,7,8,2,9,7,9,2,10,7,10,2,11,7,11,2,12,7,12,2,13,7,13,
         2,14,7,14,2,15,7,15,2,16,7,16,2,17,7,17,2,18,7,18,1,0,1,0,1,0,5,
-        0,42,8,0,10,0,12,0,45,9,0,1,0,1,0,1,1,1,1,1,1,3,1,52,8,1,1,2,1,2,
-        1,2,1,2,1,2,1,3,1,3,1,3,1,4,1,4,1,4,1,4,1,4,1,4,5,4,68,8,4,10,4,
-        12,4,71,9,4,3,4,73,8,4,1,4,1,4,1,5,1,5,1,5,5,5,80,8,5,10,5,12,5,
-        83,9,5,1,6,1,6,1,6,1,6,5,6,89,8,6,10,6,12,6,92,9,6,3,6,94,8,6,1,
-        7,1,7,1,7,5,7,99,8,7,10,7,12,7,102,9,7,3,7,104,8,7,1,8,1,8,1,8,3,
-        8,109,8,8,1,9,1,9,1,9,1,9,1,10,1,10,1,10,1,10,1,11,1,11,1,11,1,12,
-        1,12,3,12,124,8,12,1,13,1,13,1,13,1,13,1,13,1,13,1,13,1,13,1,13,
+        0,42,8,0,10,0,12,0,45,9,0,1,0,3,0,48,8,0,1,0,1,0,1,1,1,1,1,1,3,1,
+        55,8,1,1,2,1,2,1,2,1,2,1,2,1,3,1,3,1,3,1,4,1,4,1,4,1,4,1,4,1,4,5,
+        4,71,8,4,10,4,12,4,74,9,4,3,4,76,8,4,1,4,1,4,1,5,1,5,1,5,5,5,83,
+        8,5,10,5,12,5,86,9,5,1,6,1,6,1,6,1,6,5,6,92,8,6,10,6,12,6,95,9,6,
+        3,6,97,8,6,1,7,1,7,1,7,5,7,102,8,7,10,7,12,7,105,9,7,3,7,107,8,7,
+        1,8,1,8,1,8,3,8,112,8,8,1,9,1,9,1,9,1,9,1,10,1,10,1,10,1,10,1,11,
+        1,11,1,11,1,12,1,12,3,12,127,8,12,1,13,1,13,1,13,1,13,1,13,1,13,
+        1,13,1,13,1,13,3,13,138,8,13,1,13,1,13,1,13,1,13,1,13,1,13,1,13,
         1,13,1,13,1,13,1,13,1,13,1,13,1,13,1,13,1,13,1,13,1,13,1,13,1,13,
-        1,13,1,13,1,13,1,13,1,13,1,13,1,13,3,13,155,8,13,1,14,1,14,1,14,
-        1,14,5,14,161,8,14,10,14,12,14,164,9,14,3,14,166,8,14,1,14,1,14,
-        1,15,1,15,1,16,1,16,1,16,1,16,1,16,5,16,177,8,16,10,16,12,16,180,
-        9,16,3,16,182,8,16,1,16,1,16,1,16,3,16,187,8,16,1,17,1,17,1,17,1,
-        17,1,18,1,18,1,18,0,0,19,0,2,4,6,8,10,12,14,16,18,20,22,24,26,28,
-        30,32,34,36,0,2,1,0,26,31,3,0,1,3,32,32,34,36,197,0,43,1,0,0,0,2,
-        51,1,0,0,0,4,53,1,0,0,0,6,58,1,0,0,0,8,61,1,0,0,0,10,76,1,0,0,0,
-        12,84,1,0,0,0,14,95,1,0,0,0,16,108,1,0,0,0,18,110,1,0,0,0,20,114,
-        1,0,0,0,22,118,1,0,0,0,24,123,1,0,0,0,26,154,1,0,0,0,28,156,1,0,
-        0,0,30,169,1,0,0,0,32,186,1,0,0,0,34,188,1,0,0,0,36,192,1,0,0,0,
-        38,39,3,2,1,0,39,40,5,4,0,0,40,42,1,0,0,0,41,38,1,0,0,0,42,45,1,
-        0,0,0,43,41,1,0,0,0,43,44,1,0,0,0,44,46,1,0,0,0,45,43,1,0,0,0,46,
-        47,5,0,0,1,47,1,1,0,0,0,48,52,3,4,2,0,49,52,3,6,3,0,50,52,3,10,5,
-        0,51,48,1,0,0,0,51,49,1,0,0,0,51,50,1,0,0,0,52,3,1,0,0,0,53,54,5,
-        24,0,0,54,55,5,33,0,0,55,56,5,25,0,0,56,57,5,33,0,0,57,5,1,0,0,0,
-        58,59,3,8,4,0,59,60,3,14,7,0,60,7,1,0,0,0,61,62,5,23,0,0,62,63,5,
-        33,0,0,63,72,5,6,0,0,64,69,5,32,0,0,65,66,5,11,0,0,66,68,5,32,0,
-        0,67,65,1,0,0,0,68,71,1,0,0,0,69,67,1,0,0,0,69,70,1,0,0,0,70,73,
-        1,0,0,0,71,69,1,0,0,0,72,64,1,0,0,0,72,73,1,0,0,0,73,74,1,0,0,0,
-        74,75,5,7,0,0,75,9,1,0,0,0,76,77,3,12,6,0,77,81,3,14,7,0,78,80,3,
-        16,8,0,79,78,1,0,0,0,80,83,1,0,0,0,81,79,1,0,0,0,81,82,1,0,0,0,82,
-        11,1,0,0,0,83,81,1,0,0,0,84,93,5,12,0,0,85,90,5,32,0,0,86,87,5,11,
-        0,0,87,89,5,32,0,0,88,86,1,0,0,0,89,92,1,0,0,0,90,88,1,0,0,0,90,
-        91,1,0,0,0,91,94,1,0,0,0,92,90,1,0,0,0,93,85,1,0,0,0,93,94,1,0,0,
-        0,94,13,1,0,0,0,95,103,5,13,0,0,96,100,3,24,12,0,97,99,3,24,12,0,
-        98,97,1,0,0,0,99,102,1,0,0,0,100,98,1,0,0,0,100,101,1,0,0,0,101,
-        104,1,0,0,0,102,100,1,0,0,0,103,96,1,0,0,0,103,104,1,0,0,0,104,15,
-        1,0,0,0,105,109,3,18,9,0,106,109,3,20,10,0,107,109,3,22,11,0,108,
-        105,1,0,0,0,108,106,1,0,0,0,108,107,1,0,0,0,109,17,1,0,0,0,110,111,
-        5,20,0,0,111,112,5,18,0,0,112,113,5,32,0,0,113,19,1,0,0,0,114,115,
-        5,21,0,0,115,116,5,18,0,0,116,117,5,32,0,0,117,21,1,0,0,0,118,119,
-        5,17,0,0,119,120,5,34,0,0,120,23,1,0,0,0,121,124,3,26,13,0,122,124,
-        3,32,16,0,123,121,1,0,0,0,123,122,1,0,0,0,124,25,1,0,0,0,125,126,
-        5,6,0,0,126,127,5,32,0,0,127,128,3,30,15,0,128,129,3,36,18,0,129,
-        130,5,7,0,0,130,155,1,0,0,0,131,132,5,6,0,0,132,133,5,32,0,0,133,
-        134,5,19,0,0,134,135,3,28,14,0,135,136,5,7,0,0,136,155,1,0,0,0,137,
-        138,5,6,0,0,138,139,3,26,13,0,139,140,5,15,0,0,140,141,3,26,13,0,
-        141,142,5,7,0,0,142,155,1,0,0,0,143,144,5,6,0,0,144,145,3,26,13,
-        0,145,146,5,14,0,0,146,147,3,26,13,0,147,148,5,7,0,0,148,155,1,0,
-        0,0,149,150,5,6,0,0,150,151,5,16,0,0,151,152,3,26,13,0,152,153,5,
-        7,0,0,153,155,1,0,0,0,154,125,1,0,0,0,154,131,1,0,0,0,154,137,1,
-        0,0,0,154,143,1,0,0,0,154,149,1,0,0,0,155,27,1,0,0,0,156,165,5,6,
-        0,0,157,162,3,36,18,0,158,159,5,11,0,0,159,161,3,36,18,0,160,158,
-        1,0,0,0,161,164,1,0,0,0,162,160,1,0,0,0,162,163,1,0,0,0,163,166,
-        1,0,0,0,164,162,1,0,0,0,165,157,1,0,0,0,165,166,1,0,0,0,166,167,
-        1,0,0,0,167,168,5,7,0,0,168,29,1,0,0,0,169,170,7,0,0,0,170,31,1,
-        0,0,0,171,172,5,33,0,0,172,181,5,6,0,0,173,178,3,34,17,0,174,175,
-        5,11,0,0,175,177,3,34,17,0,176,174,1,0,0,0,177,180,1,0,0,0,178,176,
-        1,0,0,0,178,179,1,0,0,0,179,182,1,0,0,0,180,178,1,0,0,0,181,173,
-        1,0,0,0,181,182,1,0,0,0,182,183,1,0,0,0,183,187,5,7,0,0,184,185,
-        5,16,0,0,185,187,3,32,16,0,186,171,1,0,0,0,186,184,1,0,0,0,187,33,
-        1,0,0,0,188,189,5,33,0,0,189,190,5,26,0,0,190,191,3,36,18,0,191,
-        35,1,0,0,0,192,193,7,1,0,0,193,37,1,0,0,0,17,43,51,69,72,81,90,93,
-        100,103,108,123,154,162,165,178,181,186
+        1,13,3,13,161,8,13,1,14,1,14,1,14,1,14,5,14,167,8,14,10,14,12,14,
+        170,9,14,3,14,172,8,14,1,14,1,14,1,15,1,15,1,16,1,16,1,16,1,16,1,
+        16,5,16,183,8,16,10,16,12,16,186,9,16,3,16,188,8,16,1,16,1,16,1,
+        16,3,16,193,8,16,1,17,1,17,1,17,1,17,1,18,1,18,1,18,0,0,19,0,2,4,
+        6,8,10,12,14,16,18,20,22,24,26,28,30,32,34,36,0,2,1,0,26,31,3,0,
+        1,3,32,32,34,36,205,0,38,1,0,0,0,2,54,1,0,0,0,4,56,1,0,0,0,6,61,
+        1,0,0,0,8,64,1,0,0,0,10,79,1,0,0,0,12,87,1,0,0,0,14,98,1,0,0,0,16,
+        111,1,0,0,0,18,113,1,0,0,0,20,117,1,0,0,0,22,121,1,0,0,0,24,126,
+        1,0,0,0,26,160,1,0,0,0,28,162,1,0,0,0,30,175,1,0,0,0,32,192,1,0,
+        0,0,34,194,1,0,0,0,36,198,1,0,0,0,38,43,3,2,1,0,39,40,5,4,0,0,40,
+        42,3,2,1,0,41,39,1,0,0,0,42,45,1,0,0,0,43,41,1,0,0,0,43,44,1,0,0,
+        0,44,47,1,0,0,0,45,43,1,0,0,0,46,48,5,4,0,0,47,46,1,0,0,0,47,48,
+        1,0,0,0,48,49,1,0,0,0,49,50,5,0,0,1,50,1,1,0,0,0,51,55,3,4,2,0,52,
+        55,3,6,3,0,53,55,3,10,5,0,54,51,1,0,0,0,54,52,1,0,0,0,54,53,1,0,
+        0,0,55,3,1,0,0,0,56,57,5,24,0,0,57,58,5,33,0,0,58,59,5,25,0,0,59,
+        60,5,33,0,0,60,5,1,0,0,0,61,62,3,8,4,0,62,63,3,14,7,0,63,7,1,0,0,
+        0,64,65,5,23,0,0,65,66,5,33,0,0,66,75,5,6,0,0,67,72,5,32,0,0,68,
+        69,5,11,0,0,69,71,5,32,0,0,70,68,1,0,0,0,71,74,1,0,0,0,72,70,1,0,
+        0,0,72,73,1,0,0,0,73,76,1,0,0,0,74,72,1,0,0,0,75,67,1,0,0,0,75,76,
+        1,0,0,0,76,77,1,0,0,0,77,78,5,7,0,0,78,9,1,0,0,0,79,80,3,12,6,0,
+        80,84,3,14,7,0,81,83,3,16,8,0,82,81,1,0,0,0,83,86,1,0,0,0,84,82,
+        1,0,0,0,84,85,1,0,0,0,85,11,1,0,0,0,86,84,1,0,0,0,87,96,5,12,0,0,
+        88,93,5,32,0,0,89,90,5,11,0,0,90,92,5,32,0,0,91,89,1,0,0,0,92,95,
+        1,0,0,0,93,91,1,0,0,0,93,94,1,0,0,0,94,97,1,0,0,0,95,93,1,0,0,0,
+        96,88,1,0,0,0,96,97,1,0,0,0,97,13,1,0,0,0,98,106,5,13,0,0,99,103,
+        3,24,12,0,100,102,3,24,12,0,101,100,1,0,0,0,102,105,1,0,0,0,103,
+        101,1,0,0,0,103,104,1,0,0,0,104,107,1,0,0,0,105,103,1,0,0,0,106,
+        99,1,0,0,0,106,107,1,0,0,0,107,15,1,0,0,0,108,112,3,18,9,0,109,112,
+        3,20,10,0,110,112,3,22,11,0,111,108,1,0,0,0,111,109,1,0,0,0,111,
+        110,1,0,0,0,112,17,1,0,0,0,113,114,5,20,0,0,114,115,5,18,0,0,115,
+        116,5,32,0,0,116,19,1,0,0,0,117,118,5,21,0,0,118,119,5,18,0,0,119,
+        120,5,32,0,0,120,21,1,0,0,0,121,122,5,17,0,0,122,123,5,34,0,0,123,
+        23,1,0,0,0,124,127,3,26,13,0,125,127,3,32,16,0,126,124,1,0,0,0,126,
+        125,1,0,0,0,127,25,1,0,0,0,128,129,5,6,0,0,129,130,5,32,0,0,130,
+        131,3,30,15,0,131,132,3,36,18,0,132,133,5,7,0,0,133,161,1,0,0,0,
+        134,135,5,6,0,0,135,137,5,32,0,0,136,138,5,16,0,0,137,136,1,0,0,
+        0,137,138,1,0,0,0,138,139,1,0,0,0,139,140,5,19,0,0,140,141,3,28,
+        14,0,141,142,5,7,0,0,142,161,1,0,0,0,143,144,5,6,0,0,144,145,3,26,
+        13,0,145,146,5,15,0,0,146,147,3,26,13,0,147,148,5,7,0,0,148,161,
+        1,0,0,0,149,150,5,6,0,0,150,151,3,26,13,0,151,152,5,14,0,0,152,153,
+        3,26,13,0,153,154,5,7,0,0,154,161,1,0,0,0,155,156,5,6,0,0,156,157,
+        5,16,0,0,157,158,3,26,13,0,158,159,5,7,0,0,159,161,1,0,0,0,160,128,
+        1,0,0,0,160,134,1,0,0,0,160,143,1,0,0,0,160,149,1,0,0,0,160,155,
+        1,0,0,0,161,27,1,0,0,0,162,171,5,8,0,0,163,168,3,36,18,0,164,165,
+        5,11,0,0,165,167,3,36,18,0,166,164,1,0,0,0,167,170,1,0,0,0,168,166,
+        1,0,0,0,168,169,1,0,0,0,169,172,1,0,0,0,170,168,1,0,0,0,171,163,
+        1,0,0,0,171,172,1,0,0,0,172,173,1,0,0,0,173,174,5,9,0,0,174,29,1,
+        0,0,0,175,176,7,0,0,0,176,31,1,0,0,0,177,178,5,33,0,0,178,187,5,
+        6,0,0,179,184,3,34,17,0,180,181,5,11,0,0,181,183,3,34,17,0,182,180,
+        1,0,0,0,183,186,1,0,0,0,184,182,1,0,0,0,184,185,1,0,0,0,185,188,
+        1,0,0,0,186,184,1,0,0,0,187,179,1,0,0,0,187,188,1,0,0,0,188,189,
+        1,0,0,0,189,193,5,7,0,0,190,191,5,16,0,0,191,193,3,32,16,0,192,177,
+        1,0,0,0,192,190,1,0,0,0,193,33,1,0,0,0,194,195,5,33,0,0,195,196,
+        5,26,0,0,196,197,3,36,18,0,197,35,1,0,0,0,198,199,7,1,0,0,199,37,
+        1,0,0,0,19,43,47,54,72,75,84,93,96,103,106,111,126,137,160,168,171,
+        184,187,192
     ]
 
 class DroltaParser ( Parser ):
@@ -187,15 +190,15 @@ class DroltaParser ( Parser ):
             super().__init__(parent, invokingState)
             self.parser = parser
 
-        def EOF(self):
-            return self.getToken(DroltaParser.EOF, 0)
-
         def prog_statement(self, i:int=None):
             if i is None:
                 return self.getTypedRuleContexts(DroltaParser.Prog_statementContext)
             else:
                 return self.getTypedRuleContext(DroltaParser.Prog_statementContext,i)
 
+
+        def EOF(self):
+            return self.getToken(DroltaParser.EOF, 0)
 
         def S_COL(self, i:int=None):
             if i is None:
@@ -224,19 +227,30 @@ class DroltaParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
+            self.state = 38
+            self.prog_statement()
             self.state = 43
             self._errHandler.sync(self)
-            _la = self._input.LA(1)
-            while (((_la) & ~0x3f) == 0 and ((1 << _la) & 25169920) != 0):
-                self.state = 38
-                self.prog_statement()
-                self.state = 39
-                self.match(DroltaParser.S_COL)
+            _alt = self._interp.adaptivePredict(self._input,0,self._ctx)
+            while _alt!=2 and _alt!=ATN.INVALID_ALT_NUMBER:
+                if _alt==1:
+                    self.state = 39
+                    self.match(DroltaParser.S_COL)
+                    self.state = 40
+                    self.prog_statement() 
                 self.state = 45
                 self._errHandler.sync(self)
-                _la = self._input.LA(1)
+                _alt = self._interp.adaptivePredict(self._input,0,self._ctx)
 
-            self.state = 46
+            self.state = 47
+            self._errHandler.sync(self)
+            _la = self._input.LA(1)
+            if _la==4:
+                self.state = 46
+                self.match(DroltaParser.S_COL)
+
+
+            self.state = 49
             self.match(DroltaParser.EOF)
         except RecognitionException as re:
             localctx.exception = re
@@ -285,22 +299,22 @@ class DroltaParser ( Parser ):
         localctx = DroltaParser.Prog_statementContext(self, self._ctx, self.state)
         self.enterRule(localctx, 2, self.RULE_prog_statement)
         try:
-            self.state = 51
+            self.state = 54
             self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [24]:
                 self.enterOuterAlt(localctx, 1)
-                self.state = 48
+                self.state = 51
                 self.alias_declaration()
                 pass
             elif token in [23]:
                 self.enterOuterAlt(localctx, 2)
-                self.state = 49
+                self.state = 52
                 self.rule_declaration()
                 pass
             elif token in [12]:
                 self.enterOuterAlt(localctx, 3)
-                self.state = 50
+                self.state = 53
                 self.query()
                 pass
             else:
@@ -356,13 +370,13 @@ class DroltaParser ( Parser ):
         self.enterRule(localctx, 4, self.RULE_alias_declaration)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 53
-            self.match(DroltaParser.ALIAS)
-            self.state = 54
-            localctx.original = self.match(DroltaParser.IDENTIFIER)
-            self.state = 55
-            self.match(DroltaParser.AS)
             self.state = 56
+            self.match(DroltaParser.ALIAS)
+            self.state = 57
+            localctx.original = self.match(DroltaParser.IDENTIFIER)
+            self.state = 58
+            self.match(DroltaParser.AS)
+            self.state = 59
             localctx.alias = self.match(DroltaParser.IDENTIFIER)
         except RecognitionException as re:
             localctx.exception = re
@@ -408,9 +422,9 @@ class DroltaParser ( Parser ):
         self.enterRule(localctx, 6, self.RULE_rule_declaration)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 58
+            self.state = 61
             self.define_clause()
-            self.state = 59
+            self.state = 62
             self.where_clause()
         except RecognitionException as re:
             localctx.exception = re
@@ -473,33 +487,33 @@ class DroltaParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 61
+            self.state = 64
             self.match(DroltaParser.DEFINE)
-            self.state = 62
+            self.state = 65
             self.match(DroltaParser.IDENTIFIER)
-            self.state = 63
+            self.state = 66
             self.match(DroltaParser.OPEN_PAR)
-            self.state = 72
+            self.state = 75
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==32:
-                self.state = 64
+                self.state = 67
                 self.match(DroltaParser.VARIABLE)
-                self.state = 69
+                self.state = 72
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 while _la==11:
-                    self.state = 65
+                    self.state = 68
                     self.match(DroltaParser.COMMA)
-                    self.state = 66
+                    self.state = 69
                     self.match(DroltaParser.VARIABLE)
-                    self.state = 71
+                    self.state = 74
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
 
 
 
-            self.state = 74
+            self.state = 77
             self.match(DroltaParser.CLOSE_PAR)
         except RecognitionException as re:
             localctx.exception = re
@@ -553,17 +567,17 @@ class DroltaParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 76
+            self.state = 79
             self.find_clause()
-            self.state = 77
+            self.state = 80
             self.where_clause()
-            self.state = 81
+            self.state = 84
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             while (((_la) & ~0x3f) == 0 and ((1 << _la) & 3276800) != 0):
-                self.state = 78
+                self.state = 81
                 self.post_processing_statements()
-                self.state = 83
+                self.state = 86
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
 
@@ -619,23 +633,23 @@ class DroltaParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 84
+            self.state = 87
             self.match(DroltaParser.FIND)
-            self.state = 93
+            self.state = 96
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             if _la==32:
-                self.state = 85
+                self.state = 88
                 self.match(DroltaParser.VARIABLE)
-                self.state = 90
+                self.state = 93
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 while _la==11:
-                    self.state = 86
+                    self.state = 89
                     self.match(DroltaParser.COMMA)
-                    self.state = 87
+                    self.state = 90
                     self.match(DroltaParser.VARIABLE)
-                    self.state = 92
+                    self.state = 95
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
 
@@ -688,21 +702,21 @@ class DroltaParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 95
+            self.state = 98
             self.match(DroltaParser.WHERE)
-            self.state = 103
+            self.state = 106
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             if (((_la) & ~0x3f) == 0 and ((1 << _la) & 8590000192) != 0):
-                self.state = 96
+                self.state = 99
                 self.where_statement()
-                self.state = 100
+                self.state = 103
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 while (((_la) & ~0x3f) == 0 and ((1 << _la) & 8590000192) != 0):
-                    self.state = 97
+                    self.state = 100
                     self.where_statement()
-                    self.state = 102
+                    self.state = 105
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
 
@@ -755,22 +769,22 @@ class DroltaParser ( Parser ):
         localctx = DroltaParser.Post_processing_statementsContext(self, self._ctx, self.state)
         self.enterRule(localctx, 16, self.RULE_post_processing_statements)
         try:
-            self.state = 108
+            self.state = 111
             self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [20]:
                 self.enterOuterAlt(localctx, 1)
-                self.state = 105
+                self.state = 108
                 self.order_by_statement()
                 pass
             elif token in [21]:
                 self.enterOuterAlt(localctx, 2)
-                self.state = 106
+                self.state = 109
                 self.group_by_statement()
                 pass
             elif token in [17]:
                 self.enterOuterAlt(localctx, 3)
-                self.state = 107
+                self.state = 110
                 self.limit_statement()
                 pass
             else:
@@ -821,11 +835,11 @@ class DroltaParser ( Parser ):
         self.enterRule(localctx, 18, self.RULE_order_by_statement)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 110
+            self.state = 113
             self.match(DroltaParser.ORDER)
-            self.state = 111
+            self.state = 114
             self.match(DroltaParser.BY)
-            self.state = 112
+            self.state = 115
             self.match(DroltaParser.VARIABLE)
         except RecognitionException as re:
             localctx.exception = re
@@ -872,11 +886,11 @@ class DroltaParser ( Parser ):
         self.enterRule(localctx, 20, self.RULE_group_by_statement)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 114
+            self.state = 117
             self.match(DroltaParser.GROUP)
-            self.state = 115
+            self.state = 118
             self.match(DroltaParser.BY)
-            self.state = 116
+            self.state = 119
             self.match(DroltaParser.VARIABLE)
         except RecognitionException as re:
             localctx.exception = re
@@ -920,9 +934,9 @@ class DroltaParser ( Parser ):
         self.enterRule(localctx, 22, self.RULE_limit_statement)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 118
+            self.state = 121
             self.match(DroltaParser.LIMIT)
-            self.state = 119
+            self.state = 122
             self.match(DroltaParser.INT_LITERAL)
         except RecognitionException as re:
             localctx.exception = re
@@ -967,17 +981,17 @@ class DroltaParser ( Parser ):
         localctx = DroltaParser.Where_statementContext(self, self._ctx, self.state)
         self.enterRule(localctx, 24, self.RULE_where_statement)
         try:
-            self.state = 123
+            self.state = 126
             self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [6]:
                 self.enterOuterAlt(localctx, 1)
-                self.state = 121
+                self.state = 124
                 self.filter_statement()
                 pass
             elif token in [16, 33]:
                 self.enterOuterAlt(localctx, 2)
-                self.state = 122
+                self.state = 125
                 self.predicate_statement()
                 pass
             else:
@@ -1143,6 +1157,8 @@ class DroltaParser ( Parser ):
             return self.getToken(DroltaParser.CLOSE_PAR, 0)
         def VARIABLE(self):
             return self.getToken(DroltaParser.VARIABLE, 0)
+        def NOT(self):
+            return self.getToken(DroltaParser.NOT, 0)
 
         def enterRule(self, listener:ParseTreeListener):
             if hasattr( listener, "enterInFilter" ):
@@ -1158,80 +1174,89 @@ class DroltaParser ( Parser ):
 
         localctx = DroltaParser.Filter_statementContext(self, self._ctx, self.state)
         self.enterRule(localctx, 26, self.RULE_filter_statement)
+        self._la = 0 # Token type
         try:
-            self.state = 154
+            self.state = 160
             self._errHandler.sync(self)
-            la_ = self._interp.adaptivePredict(self._input,11,self._ctx)
+            la_ = self._interp.adaptivePredict(self._input,13,self._ctx)
             if la_ == 1:
                 localctx = DroltaParser.ComparisonFilterContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
-                self.state = 125
-                self.match(DroltaParser.OPEN_PAR)
-                self.state = 126
-                localctx.left = self.match(DroltaParser.VARIABLE)
-                self.state = 127
-                localctx.op = self.comparison_operator()
                 self.state = 128
-                localctx.right = self.atom()
+                self.match(DroltaParser.OPEN_PAR)
                 self.state = 129
+                localctx.left = self.match(DroltaParser.VARIABLE)
+                self.state = 130
+                localctx.op = self.comparison_operator()
+                self.state = 131
+                localctx.right = self.atom()
+                self.state = 132
                 self.match(DroltaParser.CLOSE_PAR)
                 pass
 
             elif la_ == 2:
                 localctx = DroltaParser.InFilterContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
-                self.state = 131
-                self.match(DroltaParser.OPEN_PAR)
-                self.state = 132
-                localctx.left = self.match(DroltaParser.VARIABLE)
-                self.state = 133
-                self.match(DroltaParser.IN)
                 self.state = 134
-                self.atom_list()
+                self.match(DroltaParser.OPEN_PAR)
                 self.state = 135
+                localctx.left = self.match(DroltaParser.VARIABLE)
+                self.state = 137
+                self._errHandler.sync(self)
+                _la = self._input.LA(1)
+                if _la==16:
+                    self.state = 136
+                    self.match(DroltaParser.NOT)
+
+
+                self.state = 139
+                self.match(DroltaParser.IN)
+                self.state = 140
+                self.atom_list()
+                self.state = 141
                 self.match(DroltaParser.CLOSE_PAR)
                 pass
 
             elif la_ == 3:
                 localctx = DroltaParser.AndFilterContext(self, localctx)
                 self.enterOuterAlt(localctx, 3)
-                self.state = 137
-                self.match(DroltaParser.OPEN_PAR)
-                self.state = 138
-                localctx.left = self.filter_statement()
-                self.state = 139
-                self.match(DroltaParser.AND)
-                self.state = 140
-                localctx.right = self.filter_statement()
-                self.state = 141
-                self.match(DroltaParser.CLOSE_PAR)
-                pass
-
-            elif la_ == 4:
-                localctx = DroltaParser.OrFilterContext(self, localctx)
-                self.enterOuterAlt(localctx, 4)
                 self.state = 143
                 self.match(DroltaParser.OPEN_PAR)
                 self.state = 144
                 localctx.left = self.filter_statement()
                 self.state = 145
-                self.match(DroltaParser.OR)
+                self.match(DroltaParser.AND)
                 self.state = 146
                 localctx.right = self.filter_statement()
                 self.state = 147
                 self.match(DroltaParser.CLOSE_PAR)
                 pass
 
-            elif la_ == 5:
-                localctx = DroltaParser.NotFilterContext(self, localctx)
-                self.enterOuterAlt(localctx, 5)
+            elif la_ == 4:
+                localctx = DroltaParser.OrFilterContext(self, localctx)
+                self.enterOuterAlt(localctx, 4)
                 self.state = 149
                 self.match(DroltaParser.OPEN_PAR)
                 self.state = 150
-                self.match(DroltaParser.NOT)
+                localctx.left = self.filter_statement()
                 self.state = 151
-                self.filter_statement()
+                self.match(DroltaParser.OR)
                 self.state = 152
+                localctx.right = self.filter_statement()
+                self.state = 153
+                self.match(DroltaParser.CLOSE_PAR)
+                pass
+
+            elif la_ == 5:
+                localctx = DroltaParser.NotFilterContext(self, localctx)
+                self.enterOuterAlt(localctx, 5)
+                self.state = 155
+                self.match(DroltaParser.OPEN_PAR)
+                self.state = 156
+                self.match(DroltaParser.NOT)
+                self.state = 157
+                self.filter_statement()
+                self.state = 158
                 self.match(DroltaParser.CLOSE_PAR)
                 pass
 
@@ -1252,11 +1277,11 @@ class DroltaParser ( Parser ):
             super().__init__(parent, invokingState)
             self.parser = parser
 
-        def OPEN_PAR(self):
-            return self.getToken(DroltaParser.OPEN_PAR, 0)
+        def BRACKET_L(self):
+            return self.getToken(DroltaParser.BRACKET_L, 0)
 
-        def CLOSE_PAR(self):
-            return self.getToken(DroltaParser.CLOSE_PAR, 0)
+        def BRACKET_R(self):
+            return self.getToken(DroltaParser.BRACKET_R, 0)
 
         def atom(self, i:int=None):
             if i is None:
@@ -1292,30 +1317,30 @@ class DroltaParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 156
-            self.match(DroltaParser.OPEN_PAR)
-            self.state = 165
+            self.state = 162
+            self.match(DroltaParser.BRACKET_L)
+            self.state = 171
             self._errHandler.sync(self)
             _la = self._input.LA(1)
             if (((_la) & ~0x3f) == 0 and ((1 << _la) & 124554051598) != 0):
-                self.state = 157
+                self.state = 163
                 self.atom()
-                self.state = 162
+                self.state = 168
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 while _la==11:
-                    self.state = 158
-                    self.match(DroltaParser.COMMA)
-                    self.state = 159
-                    self.atom()
                     self.state = 164
+                    self.match(DroltaParser.COMMA)
+                    self.state = 165
+                    self.atom()
+                    self.state = 170
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
 
 
 
-            self.state = 167
-            self.match(DroltaParser.CLOSE_PAR)
+            self.state = 173
+            self.match(DroltaParser.BRACKET_R)
         except RecognitionException as re:
             localctx.exception = re
             self._errHandler.reportError(self, re)
@@ -1371,7 +1396,7 @@ class DroltaParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 169
+            self.state = 175
             _la = self._input.LA(1)
             if not((((_la) & ~0x3f) == 0 and ((1 << _la) & 4227858432) != 0)):
                 self._errHandler.recoverInline(self)
@@ -1466,45 +1491,45 @@ class DroltaParser ( Parser ):
         self.enterRule(localctx, 32, self.RULE_predicate_statement)
         self._la = 0 # Token type
         try:
-            self.state = 186
+            self.state = 192
             self._errHandler.sync(self)
             token = self._input.LA(1)
             if token in [33]:
                 localctx = DroltaParser.PredicateContext(self, localctx)
                 self.enterOuterAlt(localctx, 1)
-                self.state = 171
+                self.state = 177
                 localctx.PredicateName = self.match(DroltaParser.IDENTIFIER)
-                self.state = 172
+                self.state = 178
                 self.match(DroltaParser.OPEN_PAR)
-                self.state = 181
+                self.state = 187
                 self._errHandler.sync(self)
                 _la = self._input.LA(1)
                 if _la==33:
-                    self.state = 173
+                    self.state = 179
                     self.predicate_param()
-                    self.state = 178
+                    self.state = 184
                     self._errHandler.sync(self)
                     _la = self._input.LA(1)
                     while _la==11:
-                        self.state = 174
-                        self.match(DroltaParser.COMMA)
-                        self.state = 175
-                        self.predicate_param()
                         self.state = 180
+                        self.match(DroltaParser.COMMA)
+                        self.state = 181
+                        self.predicate_param()
+                        self.state = 186
                         self._errHandler.sync(self)
                         _la = self._input.LA(1)
 
 
 
-                self.state = 183
+                self.state = 189
                 self.match(DroltaParser.CLOSE_PAR)
                 pass
             elif token in [16]:
                 localctx = DroltaParser.PredicateNotContext(self, localctx)
                 self.enterOuterAlt(localctx, 2)
-                self.state = 184
+                self.state = 190
                 self.match(DroltaParser.NOT)
-                self.state = 185
+                self.state = 191
                 self.predicate_statement()
                 pass
             else:
@@ -1556,11 +1581,11 @@ class DroltaParser ( Parser ):
         self.enterRule(localctx, 34, self.RULE_predicate_param)
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 188
+            self.state = 194
             self.match(DroltaParser.IDENTIFIER)
-            self.state = 189
+            self.state = 195
             self.match(DroltaParser.EQ)
-            self.state = 190
+            self.state = 196
             self.atom()
         except RecognitionException as re:
             localctx.exception = re
@@ -1611,7 +1636,7 @@ class DroltaParser ( Parser ):
         self._la = 0 # Token type
         try:
             self.enterOuterAlt(localctx, 1)
-            self.state = 192
+            self.state = 198
             _la = self._input.LA(1)
             if not((((_la) & ~0x3f) == 0 and ((1 << _la) & 124554051598) != 0)):
                 self._errHandler.recoverInline(self)

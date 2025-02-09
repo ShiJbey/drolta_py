@@ -2,7 +2,7 @@ grammar Drolta;
 
 // Parser Rules
 
-prog: (prog_statement S_COL)* EOF;
+prog: prog_statement (S_COL prog_statement)* S_COL? EOF;
 
 prog_statement: alias_declaration | rule_declaration | query;
 
@@ -35,12 +35,12 @@ where_statement: filter_statement | predicate_statement;
 
 filter_statement:
 	OPEN_PAR left = VARIABLE op = comparison_operator right = atom CLOSE_PAR	# ComparisonFilter
-	| OPEN_PAR left = VARIABLE IN atom_list CLOSE_PAR							# InFilter
+	| OPEN_PAR left = VARIABLE NOT? IN atom_list CLOSE_PAR						# InFilter
 	| OPEN_PAR left = filter_statement AND right = filter_statement CLOSE_PAR	# AndFilter
 	| OPEN_PAR left = filter_statement OR right = filter_statement CLOSE_PAR	# OrFilter
 	| OPEN_PAR NOT filter_statement CLOSE_PAR									# NotFilter;
 
-atom_list: OPEN_PAR (atom (COMMA atom)*)? CLOSE_PAR;
+atom_list: BRACKET_L (atom (COMMA atom)*)? BRACKET_R;
 
 comparison_operator: GT | GTE | LT | LTE | EQ | NEQ;
 

@@ -161,11 +161,10 @@ def test_define_predicate_alias() -> None:
         FIND ?x
         WHERE
             Character(id=?x)
-            (?x = 1);
         """
     ).fetch_all()
 
-    assert len(rows) == 1
+    assert len(rows) == 17
 
     db.close()
 
@@ -294,6 +293,16 @@ def test_single_predicate_query() -> None:
         FIND ?x
         WHERE
             characters(id=?x);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 17
+
+    rows = engine.execute(
+        """
+        FIND ?x, ?house_id
+        WHERE
+            characters(id=?x, house_id=?house_id);
         """
     ).fetch_all()
 
@@ -574,11 +583,24 @@ def test_membership_filter() -> None:
         WHERE
             characters(id=?x, house_id=?house_id)
             houses(id=?house_id, name=?family_name)
-            (?family_name IN ("Velaryon", "Targaryen"));
+            (?family_name IN ["Velaryon", "Targaryen"]);
         """
     ).fetch_all()
 
     assert len(rows) == 10
+
+    rows = engine.execute(
+        """
+        FIND
+            ?x
+        WHERE
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, name=?family_name)
+            (?family_name NOT IN ["Velaryon", "Targaryen"]);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 4
 
     db.close()
 
@@ -696,7 +718,7 @@ def test_not_filter_statement() -> None:
         WHERE
             characters(id=?x, house_id=?house_id)
             houses(id=?house_id, name=?family_name)
-            (NOT (?family_name IN ("Velaryon", "Targaryen")));
+            (NOT (?family_name IN ["Velaryon", "Targaryen"]));
         """
     ).fetch_all()
 

@@ -8,6 +8,7 @@ import dataclasses
 import enum
 import logging
 from abc import ABC, abstractmethod
+from sqlite3 import ProgrammingError
 from typing import Any, Optional, cast
 
 import antlr4
@@ -268,22 +269,48 @@ class ComparisonFilterExpression(BinaryExpression):
 class MembershipFilterExpression(ExpressionNode):
     """Membership checking filter expression."""
 
-    __slots__ = ("expr", "values")
+    __slots__ = ("expr", "is_inverted", "values")
 
     expr: ExpressionNode
+    is_inverted: bool
     values: list[ExpressionNode]
 
-    def __init__(self, expr: ExpressionNode, values: list[ExpressionNode]) -> None:
+    def __init__(
+        self, is_inverted: bool, expr: ExpressionNode, values: list[ExpressionNode]
+    ) -> None:
         super().__init__()
+        self.is_inverted = is_inverted
         self.expr = expr
         self.values = values
+        self.validate()
 
     def get_expression_type(self) -> ExpressionType:
         return ExpressionType.MEMBERSHIP_FILTER
 
+    def validate(self) -> None:
+        """Validate this expression's fields."""
+        expression_op = "NOT IN" if self.is_inverted else "IN"
+
+        if self.expr.get_expression_type() != ExpressionType.VARIABLE:
+            raise ProgrammingError(
+                f"Expected variable for left side of '{expression_op}'"
+            )
+
+        for entry in self.values:
+            expr_type = entry.get_expression_type()
+            if expr_type == ExpressionType.VARIABLE:
+                raise ProgrammingError(
+                    f"Value list in '{expression_op}'-expression cannot contain variables."
+                )
+            if expr_type == ExpressionType.NULL:
+                raise ProgrammingError(
+                    f"Value list in '{expression_op}'-expression cannot contain NULL."
+                )
+
     def __str__(self) -> str:
         value_list = ", ".join(str(v) for v in self.values)
-        return f"({self.expr} IN ({value_list}))"
+        expression_op = "NOT IN" if self.is_inverted else "IN"
+        return f"({self.expr} {expression_op} ({value_list}))"
 
 
 class PredicateExpression(ExpressionNode):
@@ -743,8 +770,11 @@ class _ScriptListener(DroltaListener):
     def exitInFilter(self, ctx: DroltaParser.InFilterContext):
         scope = self._scope_stack.pop()
 
+        is_inverted: bool = ctx.NOT() is not None
+
         self._scope_stack[-1].expr_queue.append(
             MembershipFilterExpression(
+                is_inverted=is_inverted,
                 expr=VariableExpression(ctx.VARIABLE().getText()),  # type: ignore
                 values=scope.expr_queue,
             )

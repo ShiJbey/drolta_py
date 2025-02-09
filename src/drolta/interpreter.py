@@ -6,7 +6,7 @@ import dataclasses
 import enum
 import logging
 import sqlite3
-from typing import Any, Generator, Optional, cast
+from typing import Any, Generator, Iterable, Optional, cast
 
 from drolta.ast import (
     ASTVisitor,
@@ -79,6 +79,19 @@ def has_alias_cycle(aliases: dict[str, str]) -> tuple[bool, str]:
     return False, ""
 
 
+def sqlite_dtype_to_py(d_type: str) -> str:
+    """Convert SQLite data type name to python type name."""
+
+    if d_type == "INT":
+        return "int"
+    elif d_type == "TEXT":
+        return "str"
+    elif d_type == "REAL":
+        return "float"
+
+    return "object"
+
+
 @dataclasses.dataclass(frozen=True, slots=True)
 class TempResult:
     """Information about an intermediate result of a query."""
@@ -94,6 +107,16 @@ class TempResult:
         return sorted(a.output_vars.intersection(b.output_vars))
 
 
+@dataclasses.dataclass(frozen=True, slots=True)
+class ColumnInfo:
+    """Information about a column in a table."""
+
+    name: str
+    """The name of the column."""
+    d_type: str
+    """The data type (int | str)."""
+
+
 class DroltaResult:
     """The result of a Drolta Query.
 
@@ -101,12 +124,23 @@ class DroltaResult:
     tables are removed at the start of a new query.
     """
 
+    __slots__ = ("_column_info", "_has_read_data", "_cursor")
+
+    _column_info: list[ColumnInfo]
     _has_read_data: bool
     _cursor: Optional[sqlite3.Cursor]
 
-    def __init__(self, cursor: Optional[sqlite3.Cursor] = None) -> None:
+    def __init__(
+        self, columns: list[ColumnInfo], cursor: Optional[sqlite3.Cursor] = None
+    ) -> None:
+        self._column_info = [*columns]
         self._has_read_data = False
         self._cursor = cursor
+
+    @property
+    def description(self) -> Iterable[ColumnInfo]:
+        """Get information about the columns in the result."""
+        return [*self._column_info]
 
     def fetch_all(self) -> list[Any]:
         """Get all results from the last query."""
@@ -197,7 +231,7 @@ class Interpreter(ASTVisitor):
         self.engine_data = engine_data
         self.mode = mode
         self.scope_stack = []
-        self.result = DroltaResult()
+        self.result = DroltaResult([])
 
     def visit_declare_alias(self, node: DeclareAliasExpression):
         if self.mode == InterpreterMode.QUERY_EVAL:
@@ -298,10 +332,33 @@ class Interpreter(ASTVisitor):
 
         result = cursor.execute(sql_statement)
 
-        self.result = DroltaResult(cursor=result)
+        column_info_cursor = self.db.cursor()
+
+        raw_column_data: dict[str, str] = {
+            k: v
+            for k, v in column_info_cursor.execute(
+                f"SELECT name, type FROM pragma_table_info('{result_table.table_name}')"
+            ).fetchall()
+        }
+
+        column_info: list[ColumnInfo] = []
+        for var_name, alias in self.get_scope().output_vars:
+            if var_name in raw_column_data:
+                if alias:
+                    column_info.append(
+                        ColumnInfo(alias, sqlite_dtype_to_py(raw_column_data[var_name]))
+                    )
+                else:
+                    column_info.append(
+                        ColumnInfo(
+                            var_name, sqlite_dtype_to_py(raw_column_data[var_name])
+                        )
+                    )
+
+        self.result = DroltaResult(columns=column_info, cursor=result)
 
     def visit_program(self, node: ProgramNode):
-        self.result = DroltaResult()
+        self.result = DroltaResult([])
 
         for child in node.children:
             self.visit(child)

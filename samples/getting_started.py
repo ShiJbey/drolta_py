@@ -177,6 +177,8 @@ def main() -> None:
         """
     )
 
+    print(result.description)
+
     print("Addam's Half Siblings:")
     for sibling_id, sibling_name in result.fetch_all():
         print(f"ID: {sibling_id}, Name: {sibling_name}")

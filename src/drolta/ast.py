@@ -201,6 +201,9 @@ class NotFilterExpression(ExpressionNode):
     def get_expression_type(self) -> ExpressionType:
         return ExpressionType.BINARY_LOGICAL_FILTER
 
+    def __str__(self):
+        return f"(NOT {self.expr})"
+
 
 class BinaryLogicalFilterExpression(BinaryExpression):
     """Logical AND/OR filter expressions."""
@@ -251,9 +254,15 @@ class ComparisonFilterExpression(BinaryExpression):
         elif self.op == ComparisonOp.LTE:
             return f"({self.left} <= {self.right})"
         elif self.op == ComparisonOp.EQ:
-            return f"({self.left} = {self.right})"
+            if self.right.get_expression_type() == ExpressionType.NULL:
+                return f"({self.left} IS {self.right})"
+            else:
+                return f"({self.left} = {self.right})"
         else:
-            return f"({self.left} != {self.right})"
+            if self.right.get_expression_type() == ExpressionType.NULL:
+                return f"({self.left} IS NOT {self.right})"
+            else:
+                return f"({self.left} = {self.right})"
 
 
 class MembershipFilterExpression(ExpressionNode):
@@ -766,14 +775,13 @@ class _ScriptListener(DroltaListener):
             )
             return
 
-        if ctx.BOOLEAN_LITERAL():  # type: ignore
-            if ctx.FLOAT_LITERAL().getText() == "TRUE":  # type: ignore
-                self._scope_stack[-1].expr_queue.append(BoolExpression(True))
-            else:
-                self._scope_stack[-1].expr_queue.append(BoolExpression(False))
-            return
+        if ctx.getText() == "TRUE":  # type: ignore
+            self._scope_stack[-1].expr_queue.append(BoolExpression(True))
 
-        if ctx.NULL():
+        if ctx.getText() == "FALSE":  # type: ignore
+            self._scope_stack[-1].expr_queue.append(BoolExpression(False))
+
+        if ctx.getText() == "NULL":  # type: ignore
             self._scope_stack[-1].expr_queue.append(NullExpression())
 
     def new_scope(self):

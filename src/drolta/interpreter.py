@@ -470,11 +470,11 @@ class Interpreter(ASTVisitor):
         else:
             raise ProgrammingError("Not statement expects a predicate or rule.")
 
-        result_table = self.get_scope().tables[-1]
+        result_table = self.get_scope().tables.pop()
 
         self.pop_scope()
 
-        last_table = self.get_scope().tables[-1]
+        last_table = self.get_scope().tables.pop()
 
         table_name = self.get_temp_table_name()
 
@@ -523,8 +523,6 @@ class Interpreter(ASTVisitor):
             self.db.commit()
 
             cursor.close()
-
-            self.get_scope().tables.pop()
 
             self.get_scope().tables.append(not_join_result)
 
@@ -680,7 +678,13 @@ class Interpreter(ASTVisitor):
         )
 
         if where_params:
-            where_filters = " AND ".join(f"{col}={val}" for col, val in where_params)
+            where_filters: list[str] = []
+
+            for col, val in where_params:
+                if val == "NULL":
+                    where_filters.append(f"{col} IS {val}")
+                else:
+                    where_filters.append(f"{col}={val}")
 
             select_expr = (
                 "SELECT\n"
@@ -688,7 +692,7 @@ class Interpreter(ASTVisitor):
                 "FROM\n"
                 f"\t{name}\n"
                 "WHERE\n"
-                f"\t{where_filters};\n"
+                f"\t{' AND '.join(where_filters)};\n"
             )
         else:
             select_expr = "SELECT\n" f"\t{column_aliases}\n" "FROM\n" f"\t{name};\n"

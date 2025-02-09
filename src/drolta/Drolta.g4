@@ -57,8 +57,9 @@ atom:
 	| INT_LITERAL
 	| FLOAT_LITERAL
 	| STRING_LITERAL
-	| BOOLEAN_LITERAL
-	| NULL;
+	| 'NULL'
+	| 'TRUE'
+	| 'FALSE';
 
 // LEXER RULES
 
@@ -95,9 +96,9 @@ VARIABLE: '?' [a-zA-Z_\u007F-\uFFFF] [a-zA-Z_0-9\u007F-\uFFFF]*;
 
 IDENTIFIER: [a-zA-Z_\u007F-\uFFFF] [a-zA-Z_0-9\u007F-\uFFFF]*;
 
-BOOLEAN_LITERAL: 'TRUE' | 'FALSE';
+// BOOLEAN_LITERAL: 'TRUE' | 'FALSE';
 
-NULL: 'NULL';
+// NULL: 'NULL';
 
 INT_LITERAL: [-+]? [1-9][0-9]*;
 
@@ -112,5 +113,4 @@ MULTILINE_COMMENT: '/*' .*? '*/' -> channel(HIDDEN);
 
 WHITESPACE: [ \u000B\t\r\n] -> channel(HIDDEN);
 
-fragment HEX_DIGIT: [0-9A-F];
-fragment DIGIT: [0-9];
+// fragment HEX_DIGIT: [0-9A-F]; fragment DIGIT: [0-9];

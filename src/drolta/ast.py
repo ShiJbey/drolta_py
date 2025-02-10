@@ -12,7 +12,6 @@ from sqlite3 import ProgrammingError
 from typing import Any, Optional, cast
 
 import antlr4
-
 from drolta.parsing.DroltaLexer import DroltaLexer
 from drolta.parsing.DroltaListener import DroltaListener
 from drolta.parsing.DroltaParser import DroltaParser
@@ -181,22 +180,38 @@ class ResultVarExpression(ExpressionNode):
 class DeclareRuleExpression(ExpressionNode):
     """Expression node for declaring new rules."""
 
-    __slots__ = ("name", "result_vars", "where_expressions")
+    __slots__ = (
+        "name",
+        "result_vars",
+        "where_expressions",
+        "order_by",
+        "group_by",
+        "limit",
+    )
 
     name: str
     result_vars: list[ResultVarExpression]
     where_expressions: list[ExpressionNode]
+    order_by: Optional[OrderByExpression]
+    group_by: Optional[GroupByExpression]
+    limit: Optional[LimitExpression]
 
     def __init__(
         self,
         name: str,
         result_vars: list[ResultVarExpression],
         where_expressions: list[ExpressionNode],
+        order_by: Optional[OrderByExpression] = None,
+        group_by: Optional[GroupByExpression] = None,
+        limit: Optional[LimitExpression] = None,
     ) -> None:
         super().__init__()
         self.name = name
         self.result_vars = result_vars
         self.where_expressions = where_expressions
+        self.order_by = order_by
+        self.group_by = group_by
+        self.limit = limit
         self.validate()
 
     def get_expression_type(self) -> ExpressionType:
@@ -722,6 +737,9 @@ class _ScriptListener(DroltaListener):
                 name=scope.rule_name,
                 result_vars=scope.result_vars,
                 where_expressions=scope.expr_queue,
+                order_by=scope.order_by_expr,
+                group_by=scope.group_by_expr,
+                limit=scope.limit_expr,
             )
         )
 

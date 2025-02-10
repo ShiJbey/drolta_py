@@ -5,8 +5,14 @@
 from __future__ import annotations
 
 import dataclasses
+from typing import Optional
 
-from drolta.ast import ExpressionNode
+from drolta.ast import (
+    ExpressionNode,
+    GroupByExpression,
+    LimitExpression,
+    OrderByExpression,
+)
 
 
 @dataclasses.dataclass(slots=True)
@@ -36,6 +42,9 @@ class RuleData:
     name: str
     result_vars: list[ResultVariable]
     where_expressions: list[ExpressionNode]
+    order_by: Optional[OrderByExpression]
+    group_by: Optional[GroupByExpression]
+    limit: Optional[LimitExpression]
 
 
 @dataclasses.dataclass(slots=True)

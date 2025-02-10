@@ -272,6 +272,9 @@ class Interpreter(ASTVisitor):
             name=node.name,
             result_vars=result_vars,
             where_expressions=[*node.where_expressions],
+            group_by=node.group_by,
+            order_by=node.order_by,
+            limit=node.limit,
         )
 
         self.engine_data.rules[rule.name] = rule
@@ -778,6 +781,9 @@ class Interpreter(ASTVisitor):
                 f"\t\t{',\t\t\n'.join(cte_column_statements)}\n"
                 "\tFROM\n"
                 f"\t\t{result_table.table_name}\n"
+                f"{'\t' + str(rule.group_by) + '\n' if rule.group_by else ''}"
+                f"{'\t' + str(rule.order_by) + '\n' if rule.order_by else ''}"
+                f"{'\t' + str(rule.limit) + '\n' if rule.limit else ''}"
                 f")\n"
                 "SELECT\n"
                 f"\t{',\t\n'.join(column_statements)}\n"
@@ -786,6 +792,7 @@ class Interpreter(ASTVisitor):
                 "WHERE\n"
                 f"\t{' AND '.join(where_statements)}\n"
             )
+
         else:
             select_expr = (
                 f"WITH {rule.name} AS (\n"
@@ -793,6 +800,9 @@ class Interpreter(ASTVisitor):
                 f"\t\t{',\t\t\n'.join(cte_column_statements)}\n"
                 "\tFROM\n"
                 f"\t\t{result_table.table_name}\n"
+                f"{'\t' + str(rule.group_by) + '\n' if rule.group_by else ''}"
+                f"{'\t' + str(rule.order_by) + '\n' if rule.order_by else ''}"
+                f"{'\t' + str(rule.limit) + '\n' if rule.limit else ''}"
                 f")\n"
                 "SELECT\n"
                 f"\t{',\t\n'.join(column_statements)}\n"

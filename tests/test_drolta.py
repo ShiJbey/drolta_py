@@ -9,10 +9,9 @@ now.
 
 import sqlite3
 
-import pytest
-
 import drolta
 import drolta.engine
+import pytest
 from drolta.interpreter import has_alias_cycle
 
 
@@ -945,7 +944,9 @@ def test_count_aggregate() -> None:
             HouseSize(?house_id AS id, COUNT(?character_id) AS size)
         WHERE
             Character(id=?character_id, house_id=?house_id)
-            House(id=?house_id);
+            House(id=?house_id)
+        GROUP BY ?house_id
+        ORDER BY ?house_id ASC;
         """
     )
 
@@ -955,12 +956,13 @@ def test_count_aggregate() -> None:
             ?house_id, ?size
         WHERE
             HouseSize(id=?house_id, size=?size)
-        ORDER BY ?size;
+        ORDER BY ?size DESC;
         """
     ).fetch_all()
 
     assert len(rows) == 5
     assert rows[0] == (1, 6)
     assert rows[1] == (2, 4)
+    assert rows[2] == (5, 2)
 
     db.close()

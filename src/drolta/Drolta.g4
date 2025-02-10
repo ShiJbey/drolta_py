@@ -9,7 +9,8 @@ prog_statement: alias_declaration | rule_declaration | query;
 alias_declaration:
 	ALIAS original = IDENTIFIER AS alias = IDENTIFIER;
 
-rule_declaration: define_clause where_clause;
+rule_declaration:
+	define_clause where_clause group_by_statement? order_by_statement? limit_statement?;
 
 define_clause:
 	DEFINE ruleName = IDENTIFIER OPEN_PAR (

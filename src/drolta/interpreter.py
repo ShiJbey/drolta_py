@@ -20,7 +20,7 @@ from drolta.ast import (
     QueryExpression,
     is_filter_expression,
 )
-from drolta.data import EngineData, RuleData
+from drolta.data import EngineData, ResultVariable, RuleData
 from drolta.errors import ProgrammingError
 
 _logger = logging.getLogger(__name__)
@@ -45,6 +45,8 @@ def get_execution_order(node: ExpressionNode) -> int:
 def cycle_check_dfs(
     aliases: dict[str, str], value: str, visited: set[str], stack: list[str]
 ) -> tuple[bool, str]:
+    """Perform Depth-First Search to check for cycles."""
+
     if value not in visited:
         visited.add(value)
         stack.append(value)
@@ -184,7 +186,7 @@ class Scope:
 
     scope_id: int
     """The ID of the current scope."""
-    output_vars: list[tuple[str, str]] = dataclasses.field(default_factory=list)
+    output_vars: list[ResultVariable] = dataclasses.field(default_factory=list)
     """Variables output by this scope."""
     tables: list[TempResult] = dataclasses.field(default_factory=list)
     """Temporary result tables."""
@@ -199,6 +201,10 @@ class InterpreterMode(enum.IntEnum):
     """Only allows for declaration operations."""
     QUERY_EVAL = 1
     """Only allows for query operations."""
+
+
+SUPPORTED_AGGREGATES = ("COUNT", "MAX", "MIN", "AVG", "SUM")
+"""Aggregate functions supported by Drolta."""
 
 
 class Interpreter(ASTVisitor):
@@ -252,9 +258,19 @@ class Interpreter(ASTVisitor):
         if self.mode == InterpreterMode.QUERY_EVAL:
             raise ProgrammingError("Rule declarations not allowed while querying.")
 
+        result_vars: list[ResultVariable] = []
+        for entry in node.result_vars:
+            result_vars.append(
+                ResultVariable(
+                    var_name=entry.var_name,
+                    aggregate_name=entry.aggregate_name,
+                    alias=entry.alias,
+                )
+            )
+
         rule = RuleData(
             name=node.name,
-            params=[*node.params],
+            result_vars=result_vars,
             where_expressions=[*node.where_expressions],
         )
 
@@ -268,13 +284,18 @@ class Interpreter(ASTVisitor):
 
         self.clear_scope_stack()
 
-        # This is where the magic will happen.
         _logger.debug("Evaluating query.")
 
-        # Create a new base scope
         scope = self.new_scope()
-        # Remove the "?" prefix from output params
-        scope.output_vars = [(var_name[1:], alias) for var_name, alias in node.params]
+
+        for entry in node.result_vars:
+            scope.output_vars.append(
+                ResultVariable(
+                    var_name=entry.var_name,
+                    aggregate_name=entry.aggregate_name,
+                    alias=entry.alias,
+                )
+            )
 
         # Sort expressions to push filters and not-predicate expressions
         # to the end of the query.
@@ -302,11 +323,12 @@ class Interpreter(ASTVisitor):
         # all the variables in output vars and assign them to any aliases
 
         output_cols: list[str] = []
-        for var_name, alias in self.get_scope().output_vars:
-            if alias:
-                output_cols.append(f"{var_name} AS {alias}")
-            else:
-                output_cols.append(str(var_name))
+        for entry in self.get_scope().output_vars:
+            if entry.aggregate_name:
+                if entry.aggregate_name not in SUPPORTED_AGGREGATES:
+                    raise ProgrammingError(f"Use of unsupported aggregate: {entry}")
+
+            output_cols.append(str(entry))
 
         sql_statement = (
             "SELECT DISTINCT\n"
@@ -315,11 +337,11 @@ class Interpreter(ASTVisitor):
             f"\t{result_table.table_name}\n"
         )
 
-        if node.order_by:
-            sql_statement += f"{node.order_by}\n"
-
         if node.group_by:
             sql_statement += f"{node.group_by}\n"
+
+        if node.order_by:
+            sql_statement += f"{node.order_by}\n"
 
         if node.limit:
             sql_statement += f"{node.limit}\n"
@@ -342,16 +364,20 @@ class Interpreter(ASTVisitor):
         }
 
         column_info: list[ColumnInfo] = []
-        for var_name, alias in self.get_scope().output_vars:
-            if var_name in raw_column_data:
-                if alias:
+        for entry in self.get_scope().output_vars:
+            if entry.var_name in raw_column_data:
+                if entry.alias:
                     column_info.append(
-                        ColumnInfo(alias, sqlite_dtype_to_py(raw_column_data[var_name]))
+                        ColumnInfo(
+                            entry.alias,
+                            sqlite_dtype_to_py(raw_column_data[entry.var_name]),
+                        )
                     )
                 else:
                     column_info.append(
                         ColumnInfo(
-                            var_name, sqlite_dtype_to_py(raw_column_data[var_name])
+                            entry.var_name,
+                            sqlite_dtype_to_py(raw_column_data[entry.var_name]),
                         )
                     )
 
@@ -364,12 +390,9 @@ class Interpreter(ASTVisitor):
             self.visit(child)
 
     def visit_rule(self, name: str, node: PredicateExpression):
-        current_scope = self.new_scope()
+        """Evaluates a predicate expression as a rule."""
 
-        output_vars: list[str] = []
-        for _, expr in node.params:
-            if expr.get_expression_type() == ExpressionType.VARIABLE:
-                output_vars.append(str(expr))
+        self.new_scope()
 
         rule = self.engine_data.rules[name]
 
@@ -394,36 +417,7 @@ class Interpreter(ASTVisitor):
 
         self._force_join_all_tables()
 
-        result_table = current_scope.tables.pop()
-
-        self.pop_scope()
-
-        # Perform a select over the result table using the output vars
-        sql_statement = self.get_predicate_select_expr(
-            result_table.table_name, node.params
-        )
-
-        table_name = self.get_temp_table_name()
-
-        sql_temp_table_statement = (
-            f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_statement}"
-        )
-
-        _logger.debug("Calculating Rule Output:\n%s", sql_temp_table_statement)
-
-        cursor = self.db.cursor()
-
-        cursor.execute(sql_temp_table_statement)
-
-        cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
-
-        self.db.commit()
-
-        cursor.close()
-
-        self.get_scope().tables.append(
-            TempResult(table_name=table_name, output_vars=set(output_vars))
-        )
+        self.execute_rule_sql(node, rule)
 
     def dispatch_visit_predicate(self, node: PredicateExpression):
         """Manages visiting predicates as true predicates or rules."""
@@ -435,39 +429,10 @@ class Interpreter(ASTVisitor):
         else:
             self.visit_predicate(predicate_name, node)
 
-    def visit_predicate(self, name: str, node: PredicateExpression):
+    def visit_predicate(self, predicate_table_name: str, node: PredicateExpression):
         """Evaluate predicate expression against a table in the database."""
 
-        current_scope = self.get_scope()
-
-        output_vars: list[str] = []
-        for _, expr in node.params:
-            if expr.get_expression_type() == ExpressionType.VARIABLE:
-                output_vars.append(str(expr))
-
-        # This is assumed to be a sqlite table
-        # SQLite will throw an error if it is not
-        sql_statement = Interpreter.get_predicate_select_expr(name, node.params)
-
-        table_name = self.get_temp_table_name()
-
-        sql_temp_table_statement = (
-            f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_statement}"
-        )
-
-        _logger.debug("Executing predicate select:\n%s", sql_temp_table_statement)
-
-        cursor = self.db.cursor()
-
-        cursor.execute(sql_temp_table_statement)
-
-        self.db.commit()
-
-        cursor.close()
-
-        current_scope.tables.append(
-            TempResult(table_name=table_name, output_vars=set(output_vars))
-        )
+        self.execute_predicate_sql(predicate_table_name, node)
 
     def visit_filter(self, node: ExpressionNode):
         """Evaluate predicate expression."""
@@ -476,7 +441,7 @@ class Interpreter(ASTVisitor):
         # on them.
         self._force_join_all_tables()
 
-        result_table = self.get_scope().tables[-1]
+        result_table = self.get_scope().tables.pop()
 
         sql_statement = (
             "SELECT\n"
@@ -509,8 +474,6 @@ class Interpreter(ASTVisitor):
         self.db.commit()
 
         cursor.close()
-
-        self.get_scope().tables.pop()
 
         self.get_scope().tables.append(new_result_table)
 
@@ -716,45 +679,148 @@ class Interpreter(ASTVisitor):
                     TempResult(table_name=table_name, output_vars=output_vars)
                 )
 
-    @staticmethod
-    def get_predicate_select_expr(
-        name: str, params: list[tuple[str, ExpressionNode]]
-    ) -> str:
-        """Generate a SQLite SELECT expression from the predicate data."""
+    def execute_predicate_sql(self, table_name: str, node: PredicateExpression) -> None:
+        """Execute SQL query for a predicate expression."""
 
-        variable_params: list[tuple[str, str]] = []
-        where_params: list[tuple[str, str]] = []
-        for column_name, expr in params:
+        output_vars: set[str] = set()
+        column_statements: list[str] = []
+        where_statements: list[str] = []
+
+        for column_name, expr in node.params:
             if expr.get_expression_type() == ExpressionType.VARIABLE:
-                variable_params.append((column_name, str(expr)))
+                column_statements.append(f'{column_name} AS "{expr}"')
+                output_vars.add(str(expr))
             else:
-                where_params.append((column_name, str(expr)))
-
-        column_aliases = ", ".join(
-            f'{col} AS "{var_name}"' for col, var_name in variable_params
-        )
-
-        if where_params:
-            where_filters: list[str] = []
-
-            for col, val in where_params:
-                if val == "NULL":
-                    where_filters.append(f"{col} IS {val}")
+                if expr.get_expression_type() == ExpressionType.NULL:
+                    where_statements.append(f"{column_name} IS {expr}")
                 else:
-                    where_filters.append(f"{col}={val}")
+                    where_statements.append(f"{column_name} = {expr}")
 
+        if len(column_statements) == 0:
+            raise ProgrammingError(f"Predicate '{node}' expects one output variable.")
+
+        if where_statements:
             select_expr = (
                 "SELECT\n"
-                f"\t{column_aliases}\n"
+                f"\t{',\n\t'.join(column_statements)}\n"
                 "FROM\n"
-                f"\t{name}\n"
+                f"\t{table_name}\n"
                 "WHERE\n"
-                f"\t{' AND '.join(where_filters)};\n"
+                f"\t{' AND '.join(where_statements)}"
             )
         else:
-            select_expr = "SELECT\n" f"\t{column_aliases}\n" "FROM\n" f"\t{name};\n"
+            select_expr = (
+                "SELECT\n"
+                f"\t{',\n\t'.join(column_statements)}\n"
+                "FROM\n"
+                f"\t{table_name}"
+            )
 
-        return select_expr
+        temp_table_name = self.get_temp_table_name()
+
+        sql_statement = f"CREATE TEMPORARY TABLE {temp_table_name} AS\n{select_expr};"
+
+        _logger.debug("Executing predicate select:\n%s", sql_statement)
+
+        cursor = self.db.cursor()
+
+        cursor.execute(sql_statement)
+
+        self.db.commit()
+
+        cursor.close()
+
+        self.get_scope().tables.append(TempResult(temp_table_name, output_vars))
+
+    def execute_rule_sql(self, node: PredicateExpression, rule: RuleData) -> None:
+        """Get the final SQL expression for a rule expression."""
+
+        # The variables output by this rules
+        output_vars: set[str] = set()
+        # Where statements used in the final SQL query
+        where_statements: list[str] = []
+        # Column selection statements
+        column_statements: list[str] = []
+        # Column selection statements used in the CTE
+        cte_column_statements: list[str] = []
+
+        for entry in rule.result_vars:
+            if entry.aggregate_name:
+                if entry.aggregate_name not in SUPPORTED_AGGREGATES:
+                    raise ProgrammingError(f"Use of unsupported aggregate: {entry}")
+
+            cte_column_statements.append(str(entry))
+
+        for column_name, expr in node.params:
+            # Add input parameters mapped to variables to the set of output vars
+            if expr.get_expression_type() == ExpressionType.VARIABLE:
+                column_statements.append(f'{column_name} AS "{expr}"')
+                output_vars.add(str(expr))
+
+            # If it is not a variable, then this is a column mapped to a constant
+            # and must be added to the WHERE section of the final SQL query
+            else:
+                if expr.get_expression_type() == ExpressionType.NULL:
+                    where_statements.append(f"{column_name} IS {expr}")
+                else:
+                    where_statements.append(f"{column_name} = {expr}")
+
+        result_table = self.get_scope().tables.pop()
+
+        if len(column_statements) == 0:
+            raise ProgrammingError(f"Rule '{node}' expects one output variable.")
+
+        if where_statements:
+
+            select_expr = (
+                f"WITH {rule.name} AS (\n"
+                "\tSELECT\n"
+                f"\t\t{',\t\t\n'.join(cte_column_statements)}\n"
+                "\tFROM\n"
+                f"\t\t{result_table.table_name}\n"
+                f")\n"
+                "SELECT\n"
+                f"\t{',\t\n'.join(column_statements)}\n"
+                "FROM\n"
+                f"\t{rule.name}\n"
+                "WHERE\n"
+                f"\t{' AND '.join(where_statements)}\n"
+            )
+        else:
+            select_expr = (
+                f"WITH {rule.name} AS (\n"
+                "\tSELECT\n"
+                f"\t\t{',\t\t\n'.join(cte_column_statements)}\n"
+                "\tFROM\n"
+                f"\t\t{result_table.table_name}\n"
+                f")\n"
+                "SELECT\n"
+                f"\t{',\t\n'.join(column_statements)}\n"
+                "FROM\n"
+                f"\t{rule.name}\n"
+            )
+
+        self.pop_scope()
+
+        temp_table_name = self.get_temp_table_name()
+
+        sql_temp_table_statement = (
+            f"CREATE TEMPORARY TABLE {temp_table_name} AS\n" f"{select_expr}"
+        )
+
+        _logger.debug("Executing Rule SQL:\n%s", sql_temp_table_statement)
+
+        cursor = self.db.cursor()
+
+        cursor.execute(sql_temp_table_statement)
+
+        cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
+
+        self.db.commit()
+
+        cursor.close()
+
+        self.get_scope().tables.append(TempResult(temp_table_name, output_vars))
 
     def get_final_predicate_name(self, name: str) -> str:
         """Resolve the final name of a predicate from a potential alias."""
@@ -782,7 +848,10 @@ class Interpreter(ASTVisitor):
 
     def get_scope(self) -> Scope:
         """Get the current scope."""
-        return self.scope_stack[-1]
+        if self.scope_stack:
+            return self.scope_stack[-1]
+
+        return self.new_scope()
 
     def new_scope(self) -> Scope:
         """Push a new scope on the stack."""

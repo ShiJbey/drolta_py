@@ -311,59 +311,59 @@ def test_single_predicate_query() -> None:
     db.close()
 
 
-# def test_query_output_aliases() -> None:
-#     """Test that queries output columns with the proper alias names."""
+def test_query_output_aliases() -> None:
+    """Test that queries output columns with the proper alias names."""
 
-#     db = sqlite3.Connection(":memory:")
+    db = sqlite3.Connection(":memory:")
 
-#     initialize_test_data(db)
+    initialize_test_data(db)
 
-#     engine = drolta.engine.QueryEngine(db)
+    engine = drolta.engine.QueryEngine(db)
 
-#     rows = engine.execute(
-#         """
-#         FIND ?x AS character_id
-#         WHERE
-#             characters(?x);
-#         """
-#     ).fetch_all()
+    rows = engine.execute(
+        """
+        FIND
+            ?x AS character_id
+        WHERE
+            characters(id=?x);
+        """
+    ).fetch_all()
 
-#     assert len(rows) == 17
+    assert len(rows) == 17
 
-#     db.close()
+    db.close()
 
 
-# def test_rule_param_aliases() -> None:
-#     """Test that rule parameters can be referred to using provided aliases."""
+def test_rule_param_aliases() -> None:
+    """Test that rule parameters can be referred to using provided aliases."""
 
-#     db = sqlite3.Connection(":memory:")
+    db = sqlite3.Connection(":memory:")
 
-#     initialize_test_data(db)
+    initialize_test_data(db)
 
-#     engine = drolta.engine.QueryEngine(db)
+    engine = drolta.engine.QueryEngine(db)
 
-#     engine.execute_script(
-#         """
-#         DEFINE
-#             FromNobleHouse(?x AS character_id)
-#         WHERE
-#             characters(id=?x, house_id=?house_id)
-#             family(id=?house_id, is_noble=TRUE);
-#         """
-#     )
+    engine.execute_script(
+        """
+        DEFINE
+            FromNobleHouse(?x AS character_id)
+        WHERE
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, is_noble=TRUE);
+        """
+    )
 
-#     result = engine.execute(
-#         """
-#         FIND ?x
-#         WHERE
-#             FromNobleHouse(?x);
-#         """
-#     ).fetch_all()
+    rows = engine.execute(
+        """
+        FIND ?x
+        WHERE
+            FromNobleHouse(character_id=?x);
+        """
+    ).fetch_all()
 
-#     # TODO: Add assert statement for an expected number of rows.
-#     assert False
+    assert len(rows) == 12
 
-#     db.close()
+    db.close()
 
 
 def test_multi_predicate_query() -> None:
@@ -922,5 +922,45 @@ def test_double_fetch_throws_error() -> None:
 
     with pytest.raises(RuntimeError):
         result.fetch_all()
+
+    db.close()
+
+
+def test_count_aggregate() -> None:
+    """Test the COUNT aggregate function."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    engine.execute_script(
+        """
+        ALIAS characters AS Character;
+        ALIAS relations AS Relation;
+        ALIAS houses AS House;
+
+        DEFINE
+            HouseSize(?house_id AS id, COUNT(?character_id) AS size)
+        WHERE
+            Character(id=?character_id, house_id=?house_id)
+            House(id=?house_id);
+        """
+    )
+
+    rows = engine.execute(
+        """
+        FIND
+            ?house_id, ?size
+        WHERE
+            HouseSize(id=?house_id, size=?size)
+        ORDER BY ?size;
+        """
+    ).fetch_all()
+
+    assert len(rows) == 5
+    assert rows[0] == (1, 6)
+    assert rows[1] == (2, 4)
 
     db.close()

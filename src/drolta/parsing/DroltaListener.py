@@ -63,6 +63,14 @@ class DroltaListener(ParseTreeListener):
     def exitFind_clause(self, ctx: DroltaParser.Find_clauseContext):
         pass
 
+    # Enter a parse tree produced by DroltaParser#result_var.
+    def enterResult_var(self, ctx: DroltaParser.Result_varContext):
+        pass
+
+    # Exit a parse tree produced by DroltaParser#result_var.
+    def exitResult_var(self, ctx: DroltaParser.Result_varContext):
+        pass
+
     # Enter a parse tree produced by DroltaParser#where_clause.
     def enterWhere_clause(self, ctx: DroltaParser.Where_clauseContext):
         pass
@@ -71,24 +79,20 @@ class DroltaListener(ParseTreeListener):
     def exitWhere_clause(self, ctx: DroltaParser.Where_clauseContext):
         pass
 
-    # Enter a parse tree produced by DroltaParser#post_processing_statements.
-    def enterPost_processing_statements(
-        self, ctx: DroltaParser.Post_processing_statementsContext
-    ):
-        pass
-
-    # Exit a parse tree produced by DroltaParser#post_processing_statements.
-    def exitPost_processing_statements(
-        self, ctx: DroltaParser.Post_processing_statementsContext
-    ):
-        pass
-
     # Enter a parse tree produced by DroltaParser#order_by_statement.
     def enterOrder_by_statement(self, ctx: DroltaParser.Order_by_statementContext):
         pass
 
     # Exit a parse tree produced by DroltaParser#order_by_statement.
     def exitOrder_by_statement(self, ctx: DroltaParser.Order_by_statementContext):
+        pass
+
+    # Enter a parse tree produced by DroltaParser#ordering_term.
+    def enterOrdering_term(self, ctx: DroltaParser.Ordering_termContext):
+        pass
+
+    # Exit a parse tree produced by DroltaParser#ordering_term.
+    def exitOrdering_term(self, ctx: DroltaParser.Ordering_termContext):
         pass
 
     # Enter a parse tree produced by DroltaParser#group_by_statement.
@@ -201,6 +205,14 @@ class DroltaListener(ParseTreeListener):
 
     # Exit a parse tree produced by DroltaParser#atom.
     def exitAtom(self, ctx: DroltaParser.AtomContext):
+        pass
+
+    # Enter a parse tree produced by DroltaParser#variable.
+    def enterVariable(self, ctx: DroltaParser.VariableContext):
+        pass
+
+    # Exit a parse tree produced by DroltaParser#variable.
+    def exitVariable(self, ctx: DroltaParser.VariableContext):
         pass
 
 

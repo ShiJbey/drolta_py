@@ -44,3 +44,4 @@ _initial release._
 
 [0.1.0]: https://github.com/ShiJbey/drolta_py/releases/v0.1.0
 [0.2.0]: https://github.com/ShiJbey/drolta_py/releases/v0.2.0
+[0.2.1]: https://github.com/ShiJbey/drolta_py/releases/v0.2.0

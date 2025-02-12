@@ -1,16 +1,16 @@
-"""Drolta abstract syntax tree implementation.
-
-"""
+"""Drolta abstract syntax tree implementation."""
 
 from __future__ import annotations
 
-import dataclasses
 import enum
 import logging
 from abc import ABC, abstractmethod
+from sqlite3 import ProgrammingError
 from typing import Any, Optional, cast
 
 import antlr4
+import attrs
+
 from drolta.parsing.DroltaLexer import DroltaLexer
 from drolta.parsing.DroltaListener import DroltaListener
 from drolta.parsing.DroltaParser import DroltaParser
@@ -39,6 +39,7 @@ class ExpressionType(enum.IntEnum):
     BINARY_LOGICAL_FILTER = enum.auto()
     COMPARISON_FILTER = enum.auto()
     MEMBERSHIP_FILTER = enum.auto()
+    RESULT_VARIABLE = enum.auto()
 
 
 _VALID_VALUE_EXPRESSIONS = (
@@ -143,33 +144,87 @@ class DeclareAliasExpression(ExpressionNode):
         return ExpressionType.DECLARE_ALIAS
 
 
+class ResultVarExpression(ExpressionNode):
+    """Expression node for result vars for rules and queries."""
+
+    __slots__ = ("aggregate_name", "var_name", "alias")
+
+    aggregate_name: str
+    var_name: str
+    alias: str
+
+    def __init__(
+        self, var_name: str, aggregate_name: str = "", alias: str = ""
+    ) -> None:
+        super().__init__()
+        self.var_name = var_name
+        self.aggregate_name = aggregate_name
+        self.alias = alias
+
+    def get_expression_type(self) -> ExpressionType:
+        return ExpressionType.RESULT_VARIABLE
+
+    def __str__(self):
+        final_str = self.var_name
+
+        if self.aggregate_name:
+            final_str = f"{self.aggregate_name}({final_str})"
+
+        if self.alias:
+            final_str = f'{final_str} AS "{self.alias}"'
+
+        return final_str
+
+
 class DeclareRuleExpression(ExpressionNode):
     """Expression node for declaring new rules."""
 
-    __slots__ = ("name", "params", "where_expressions")
+    __slots__ = (
+        "name",
+        "result_vars",
+        "where_expressions",
+        "order_by",
+        "group_by",
+        "limit",
+    )
 
     name: str
-    params: list[
-        tuple[
-            str,
-            str,
-        ]
-    ]
+    result_vars: list[ResultVarExpression]
     where_expressions: list[ExpressionNode]
+    order_by: Optional[OrderByExpression]
+    group_by: Optional[GroupByExpression]
+    limit: Optional[LimitExpression]
 
     def __init__(
         self,
         name: str,
-        params: list[tuple[str, str]],
+        result_vars: list[ResultVarExpression],
         where_expressions: list[ExpressionNode],
+        order_by: Optional[OrderByExpression] = None,
+        group_by: Optional[GroupByExpression] = None,
+        limit: Optional[LimitExpression] = None,
     ) -> None:
         super().__init__()
         self.name = name
-        self.params = params
+        self.result_vars = result_vars
         self.where_expressions = where_expressions
+        self.order_by = order_by
+        self.group_by = group_by
+        self.limit = limit
+        self.validate()
 
     def get_expression_type(self) -> ExpressionType:
         return ExpressionType.DECLARE_RULE
+
+    def validate(self) -> None:
+        """Validate the fields."""
+        if len(self.where_expressions) == 0:
+            raise ProgrammingError(
+                "WHERE section of rule declaration is missing statements."
+            )
+
+        if len(self.result_vars) == 0:
+            raise ProgrammingError("Rule declaration is missing result variables.")
 
 
 class BinaryExpression(ExpressionNode, ABC):
@@ -199,6 +254,9 @@ class NotFilterExpression(ExpressionNode):
 
     def get_expression_type(self) -> ExpressionType:
         return ExpressionType.BINARY_LOGICAL_FILTER
+
+    def __str__(self):
+        return f"(NOT {self.expr})"
 
 
 class BinaryLogicalFilterExpression(BinaryExpression):
@@ -250,30 +308,62 @@ class ComparisonFilterExpression(BinaryExpression):
         elif self.op == ComparisonOp.LTE:
             return f"({self.left} <= {self.right})"
         elif self.op == ComparisonOp.EQ:
-            return f"({self.left} = {self.right})"
+            if self.right.get_expression_type() == ExpressionType.NULL:
+                return f"({self.left} IS {self.right})"
+            else:
+                return f"({self.left} = {self.right})"
         else:
-            return f"({self.left} != {self.right})"
+            if self.right.get_expression_type() == ExpressionType.NULL:
+                return f"({self.left} IS NOT {self.right})"
+            else:
+                return f"({self.left} != {self.right})"
 
 
 class MembershipFilterExpression(ExpressionNode):
     """Membership checking filter expression."""
 
-    __slots__ = ("expr", "values")
+    __slots__ = ("expr", "is_inverted", "values")
 
     expr: ExpressionNode
+    is_inverted: bool
     values: list[ExpressionNode]
 
-    def __init__(self, expr: ExpressionNode, values: list[ExpressionNode]) -> None:
+    def __init__(
+        self, is_inverted: bool, expr: ExpressionNode, values: list[ExpressionNode]
+    ) -> None:
         super().__init__()
+        self.is_inverted = is_inverted
         self.expr = expr
         self.values = values
+        self.validate()
 
     def get_expression_type(self) -> ExpressionType:
         return ExpressionType.MEMBERSHIP_FILTER
 
+    def validate(self) -> None:
+        """Validate this expression's fields."""
+        expression_op = "NOT IN" if self.is_inverted else "IN"
+
+        if self.expr.get_expression_type() != ExpressionType.VARIABLE:
+            raise ProgrammingError(
+                f"Expected variable for left side of '{expression_op}'"
+            )
+
+        for entry in self.values:
+            expr_type = entry.get_expression_type()
+            if expr_type == ExpressionType.VARIABLE:
+                raise ProgrammingError(
+                    f"Value list in '{expression_op}'-expression cannot contain variables."
+                )
+            if expr_type == ExpressionType.NULL:
+                raise ProgrammingError(
+                    f"Value list in '{expression_op}'-expression cannot contain NULL."
+                )
+
     def __str__(self) -> str:
         value_list = ", ".join(str(v) for v in self.values)
-        return f"({self.expr} in [{value_list}])"
+        expression_op = "NOT IN" if self.is_inverted else "IN"
+        return f"({self.expr} {expression_op} ({value_list}))"
 
 
 class PredicateExpression(ExpressionNode):
@@ -294,6 +384,8 @@ class PredicateExpression(ExpressionNode):
 
 
 class VariableExpression(ExpressionNode):
+    """Expression for a variable."""
+
     __slots__ = ("variable",)
 
     variable: str
@@ -306,7 +398,7 @@ class VariableExpression(ExpressionNode):
         return ExpressionType.VARIABLE
 
     def __str__(self) -> str:
-        return f"{self.variable[1:]}"
+        return f"{self.variable}"
 
 
 class IntExpression(ExpressionNode):
@@ -409,90 +501,139 @@ class NotPredicateExpression(ExpressionNode):
 class QueryExpression(ExpressionNode):
     """A query expression."""
 
-    __slots__ = ("params", "where_expressions", "order_by", "group_by", "limit")
+    __slots__ = ("result_vars", "where_expressions", "order_by", "group_by", "limit")
 
-    params: list[
-        tuple[
-            str,
-            str,
-        ]
-    ]
+    result_vars: list[ResultVarExpression]
     where_expressions: list[ExpressionNode]
     order_by: Optional[OrderByExpression]
     group_by: Optional[GroupByExpression]
-    limit: Optional[OrderByExpression]
+    limit: Optional[LimitExpression]
 
     def __init__(
         self,
-        params: list[tuple[str, str]],
+        result_vars: list[ResultVarExpression],
         where_expressions: list[ExpressionNode],
         order_by: Optional[OrderByExpression] = None,
         group_by: Optional[GroupByExpression] = None,
-        limit: Optional[OrderByExpression] = None,
+        limit: Optional[LimitExpression] = None,
     ) -> None:
         super().__init__()
-        self.params = params
+        self.result_vars = result_vars
         self.where_expressions = where_expressions
         self.order_by = order_by
         self.group_by = group_by
         self.limit = limit
+        self.validate()
 
     def get_expression_type(self) -> ExpressionType:
         return ExpressionType.QUERY
+
+    def validate(self) -> None:
+        """Validate the fields."""
+        if len(self.where_expressions) == 0:
+            raise ProgrammingError("WHERE section of query is missing statements.")
+
+        if len(self.result_vars) == 0:
+            raise ProgrammingError("Query is missing result variables.")
+
+
+class OrderingOp(enum.IntEnum):
+    """Ordering operation."""
+
+    NONE = 0
+    ASC = enum.auto()
+    DESC = enum.auto()
+
+
+class NullsOrderingOp(enum.IntEnum):
+    """Ordering operation for nulls in an ORDER BY clause."""
+
+    NONE = 0
+    FIRST = enum.auto()
+    LAST = enum.auto()
+
+
+@attrs.define(frozen=True, slots=True)
+class OrderingTerm:
+    """A term used to order query output."""
+
+    var_name: str
+    ordering_op: OrderingOp = OrderingOp.NONE
+    nulls_ordering_op: NullsOrderingOp = NullsOrderingOp.NONE
+
+    def __str__(self) -> str:
+        asc_desc = ""
+        if self.ordering_op != OrderingOp.NONE:
+            asc_desc = " ASC" if self.ordering_op == OrderingOp.ASC else " DESC"
+
+        nulls_order = ""
+        if self.nulls_ordering_op != NullsOrderingOp.NONE:
+            nulls_order = (
+                " NULLS FIRST"
+                if self.nulls_ordering_op == NullsOrderingOp.FIRST
+                else " NULLS LAST"
+            )
+
+        return f"{self.var_name}{asc_desc}{nulls_order}"
 
 
 class OrderByExpression(ExpressionNode):
     """Order by expression."""
 
-    __slots__ = ("expr",)
+    __slots__ = ("terms",)
 
-    expr: ExpressionNode
+    terms: list[OrderingTerm]
 
-    def __init__(self, expr: ExpressionNode) -> None:
+    def __init__(self, terms: list[OrderingTerm]) -> None:
         super().__init__()
-        self.expr = expr
+        self.terms = terms
 
     def get_expression_type(self) -> ExpressionType:
         return ExpressionType.ORDER_BY
 
     def __str__(self) -> str:
-        return f"ORDER BY {self.expr}"
+        term_list_str = ", ".join(str(term) for term in self.terms)
+        return f"ORDER BY {term_list_str}"
 
 
 class GroupByExpression(ExpressionNode):
     """Group by expression."""
 
-    __slots__ = ("expr",)
+    __slots__ = ("grouping_terms",)
 
-    expr: ExpressionNode
+    grouping_terms: list[str]
 
-    def __init__(self, expr: ExpressionNode) -> None:
+    def __init__(self, terms: list[str]) -> None:
         super().__init__()
-        self.expr = expr
+        self.grouping_terms = terms
 
     def get_expression_type(self) -> ExpressionType:
         return ExpressionType.GROUP_BY
 
     def __str__(self) -> str:
-        return f"GROUP BY {self.expr}"
+        term_list_str = ", ".join(term for term in self.grouping_terms)
+        return f"GROUP BY {term_list_str}"
 
 
 class LimitExpression(ExpressionNode):
     """Limit expression."""
 
-    __slots__ = ("value",)
+    __slots__ = ("value", "offset")
 
     value: int
+    offset: int
 
-    def __init__(self, value: int) -> None:
+    def __init__(self, value: int, offset: int = -1) -> None:
         super().__init__()
         self.value = value
+        self.offset = offset
 
     def get_expression_type(self) -> ExpressionType:
         return ExpressionType.LIMIT
 
     def __str__(self) -> str:
-        return f"LIMIT {self.value}"
+        offset_expr = f" OFFSET {self.offset}" if self.offset > 0 else ""
+        return f"LIMIT {self.value}{offset_expr}"
 
 
 class ASTVisitor(ABC):
@@ -537,22 +678,17 @@ class ASTVisitor(ABC):
         raise TypeError(f"Unsupported node expression type: {expression_type.name}")
 
 
-@dataclasses.dataclass(slots=True)
+@attrs.define(slots=True)
 class _ListenerScope:
     """A scope of data used within the script listener."""
 
     rule_name: str = ""
-    rule_params: list[tuple[str, str]] = dataclasses.field(default_factory=list)
-    expr_queue: list[ExpressionNode] = dataclasses.field(default_factory=list)
-    predicate_params: list[tuple[str, ExpressionNode]] = dataclasses.field(
-        default_factory=list
-    )
-    post_processing_expr_list: list[ExpressionNode] = dataclasses.field(
-        default_factory=list
-    )
-    order_by: Optional[OrderByExpression] = None
-    group_by: Optional[GroupByExpression] = None
-    limit: Optional[OrderByExpression] = None
+    result_vars: list[ResultVarExpression] = attrs.field(factory=list)
+    expr_queue: list[ExpressionNode] = attrs.field(factory=list)
+    predicate_params: list[tuple[str, ExpressionNode]] = attrs.field(factory=list)
+    order_by_expr: Optional[OrderByExpression] = None
+    group_by_expr: Optional[GroupByExpression] = None
+    limit_expr: Optional[LimitExpression] = None
 
 
 class _ScriptListener(DroltaListener):
@@ -572,10 +708,10 @@ class _ScriptListener(DroltaListener):
         return self._ast
 
     def enterProg(self, ctx: DroltaParser.ProgContext):
-        self._scope_stack.append(_ListenerScope())
+        self.new_scope()
 
     def exitProg(self, ctx: DroltaParser.ProgContext):
-        scope = self._scope_stack.pop()
+        scope = self.pop_scope()
 
         self._ast = ProgramNode(scope.expr_queue)
 
@@ -583,30 +719,45 @@ class _ScriptListener(DroltaListener):
         original_name = str(ctx.original.text)  # type: ignore
         alias_name = str(ctx.alias.text)  # type: ignore
 
-        self._scope_stack[-1].expr_queue.append(
+        self.get_scope().expr_queue.append(
             DeclareAliasExpression(original_name, alias_name)
         )
 
     def enterRule_declaration(self, ctx: DroltaParser.Rule_declarationContext):
-        self._scope_stack.append(_ListenerScope())
+        self.new_scope()
 
     def exitRule_declaration(self, ctx: DroltaParser.Rule_declarationContext):
-        scope = self._scope_stack.pop()
+        scope = self.pop_scope()
 
-        self._scope_stack[-1].expr_queue.append(
+        self.get_scope().expr_queue.append(
             DeclareRuleExpression(
                 name=scope.rule_name,
-                params=scope.rule_params,
+                result_vars=scope.result_vars,
                 where_expressions=scope.expr_queue,
+                order_by=scope.order_by_expr,
+                group_by=scope.group_by_expr,
+                limit=scope.limit_expr,
             )
         )
 
     def exitDefine_clause(self, ctx: DroltaParser.Define_clauseContext):
-        rule_name = ctx.IDENTIFIER().getText()  # type: ignore
-        params = [(v.getText(), "") for v in ctx.VARIABLE()]  # type: ignore
+        rule_name: str = ctx.ruleName.text  # type: ignore
+        self.get_scope().rule_name = rule_name
 
-        self._scope_stack[-1].rule_name = rule_name
-        self._scope_stack[-1].rule_params = params
+    def exitResult_var(self, ctx: DroltaParser.Result_varContext):
+        scope = self.get_scope()
+
+        var_name: str = ctx.variable().IDENTIFIER().getText()  # type: ignore
+        aggregate_name: str = ctx.aggregateName.text if ctx.aggregateName else ""  # type: ignore
+        alias: str = ctx.alias.text if ctx.alias else ""
+
+        scope.result_vars.append(
+            ResultVarExpression(
+                var_name=var_name,  # type: ignore
+                aggregate_name=aggregate_name,
+                alias=alias,
+            )
+        )
 
     def enterQuery(self, ctx: DroltaParser.QueryContext):
         self.new_scope()
@@ -615,170 +766,206 @@ class _ScriptListener(DroltaListener):
         scope = self.pop_scope()
 
         expr = QueryExpression(
-            params=scope.rule_params,
+            result_vars=scope.result_vars,
             where_expressions=scope.expr_queue,
-            order_by=scope.order_by,
-            group_by=scope.group_by,
-            limit=scope.limit,
+            order_by=scope.order_by_expr,
+            group_by=scope.group_by_expr,
+            limit=scope.limit_expr,
         )
 
-        self._scope_stack[-1].expr_queue.append(expr)
-
-    def exitFind_clause(self, ctx: DroltaParser.Find_clauseContext):
-        for v in ctx.VARIABLE():  # type: ignore
-            self._scope_stack[-1].rule_params.append((v.getText(), ""))  # type: ignore
+        self.get_scope().expr_queue.append(expr)
 
     def exitOrder_by_statement(self, ctx: DroltaParser.Order_by_statementContext):
-        self._scope_stack[-1].order_by = OrderByExpression(
-            VariableExpression(ctx.VARIABLE().getText())  # type: ignore
-        )
+        terms: list[OrderingTerm] = []
+
+        for entry in ctx.ordering_term():  # type: ignore
+
+            ordering_op = OrderingOp.NONE
+            if entry.ASC():  # type: ignore
+                ordering_op = OrderingOp.ASC
+            elif entry.DESC():  # type: ignore
+                ordering_op = OrderingOp.DESC
+
+            nulls_ordering_op = NullsOrderingOp.NONE
+            if entry.FIRST():  # type: ignore
+                nulls_ordering_op = NullsOrderingOp.FIRST
+            elif entry.LAST():  # type: ignore
+                nulls_ordering_op = NullsOrderingOp.LAST
+
+            terms.append(
+                OrderingTerm(
+                    var_name=entry.variable().IDENTIFIER().getText(),  # type: ignore
+                    ordering_op=ordering_op,
+                    nulls_ordering_op=nulls_ordering_op,
+                )
+            )
+
+        self.get_scope().order_by_expr = OrderByExpression(terms)
 
     def exitGroup_by_statement(self, ctx: DroltaParser.Group_by_statementContext):
-        self._scope_stack[-1].group_by = GroupByExpression(
-            VariableExpression(ctx.VARIABLE().getText())  # type: ignore
-        )
+        terms: list[str] = []
+
+        for entry in ctx.variable():  # type: ignore
+            terms.append(entry.IDENTIFIER().getText())  # type: ignore
+
+        self.get_scope().group_by_expr = GroupByExpression(terms)
 
     def exitLimit_statement(self, ctx: DroltaParser.Limit_statementContext):
-        self._scope_stack[-1].limit = LimitExpression(
-            int(ctx.INT_LITERAL().getText())  # type: ignore
-        )
+        limit: int = int(ctx.limitVal.text)  # type: ignore
+        offset: int = int(ctx.offsetVal.text) if ctx.offsetVal else -1  # type: ignore
+
+        self.get_scope().limit_expr = LimitExpression(value=limit, offset=offset)
 
     def enterPredicate(self, ctx: DroltaParser.PredicateContext):
-        self._scope_stack.append(_ListenerScope())
+        self.new_scope()
 
     def exitPredicate(self, ctx: DroltaParser.PredicateContext):
         predicate_name: str = ctx.IDENTIFIER().getText()  # type: ignore
 
-        scope = self._scope_stack.pop()
+        scope = self.pop_scope()
 
-        self._scope_stack[-1].expr_queue.append(
+        self.get_scope().expr_queue.append(
             PredicateExpression(name=predicate_name, params=scope.predicate_params)  # type: ignore
         )
 
     def enterPredicateNot(self, ctx: DroltaParser.PredicateNotContext):
-        self._scope_stack.append(_ListenerScope())
+        self.new_scope()
 
     def exitPredicateNot(self, ctx: DroltaParser.PredicateNotContext):
-        scope = self._scope_stack.pop()
+        scope = self.pop_scope()
 
-        self._scope_stack[-1].expr_queue.append(
-            NotPredicateExpression(scope.expr_queue[0])
-        )
+        self.get_scope().expr_queue.append(NotPredicateExpression(scope.expr_queue[0]))
 
     def enterPredicate_param(self, ctx: DroltaParser.Predicate_paramContext):
-        self._scope_stack.append(_ListenerScope())
+        self.new_scope()
 
     def exitPredicate_param(self, ctx: DroltaParser.Predicate_paramContext):
-        scope = self._scope_stack.pop()
+        scope = self.pop_scope()
 
         atom = scope.expr_queue[0]
 
-        self._scope_stack[-1].predicate_params.append(
+        self.get_scope().predicate_params.append(
             (ctx.IDENTIFIER().getText(), atom)  # type: ignore
         )
 
     def enterComparisonFilter(self, ctx: DroltaParser.ComparisonFilterContext):
-        self._scope_stack.append(_ListenerScope())
+        self.new_scope()
 
     def exitComparisonFilter(self, ctx: DroltaParser.ComparisonFilterContext):
-        scope = self._scope_stack.pop()
+        scope = self.pop_scope()
 
-        self._scope_stack[-1].expr_queue.append(
+        self.get_scope().expr_queue.append(
             ComparisonFilterExpression(
                 op=_ScriptListener.parse_comparison_op(ctx.op.getText()),  # type: ignore
-                left=VariableExpression(ctx.left.text),  # type: ignore
+                left=VariableExpression(ctx.variable().IDENTIFIER().getText()),  # type: ignore
                 right=scope.expr_queue[0],
             )
         )
 
     def enterAndFilter(self, ctx: DroltaParser.AndFilterContext):
-        self._scope_stack.append(_ListenerScope())
+        self.new_scope()
 
     def exitAndFilter(self, ctx: DroltaParser.AndFilterContext):
-        scope = self._scope_stack.pop()
+        scope = self.pop_scope()
 
-        self._scope_stack[-1].expr_queue.append(
+        self.get_scope().expr_queue.append(
             BinaryLogicalFilterExpression(
                 op=LogicalOp.AND, left=scope.expr_queue[0], right=scope.expr_queue[1]
             )
         )
 
     def enterOrFilter(self, ctx: DroltaParser.OrFilterContext):
-        self._scope_stack.append(_ListenerScope())
+        self.new_scope()
 
     def exitOrFilter(self, ctx: DroltaParser.OrFilterContext):
-        scope = self._scope_stack.pop()
+        scope = self.pop_scope()
 
-        self._scope_stack[-1].expr_queue.append(
+        self.get_scope().expr_queue.append(
             BinaryLogicalFilterExpression(
                 op=LogicalOp.OR, left=scope.expr_queue[0], right=scope.expr_queue[1]
             )
         )
 
     def enterNotFilter(self, ctx: DroltaParser.NotFilterContext):
-        self._scope_stack.append(_ListenerScope())
+        self.new_scope()
 
     def exitNotFilter(self, ctx: DroltaParser.NotFilterContext):
-        scope = self._scope_stack.pop()
+        scope = self.pop_scope()
 
-        self._scope_stack[-1].expr_queue.append(
+        self.get_scope().expr_queue.append(
             NotFilterExpression(
                 expr=scope.expr_queue[0],
             )
         )
 
     def enterInFilter(self, ctx: DroltaParser.InFilterContext):
-        self._scope_stack.append(_ListenerScope())
+        self.new_scope()
 
     def exitInFilter(self, ctx: DroltaParser.InFilterContext):
-        scope = self._scope_stack.pop()
+        scope = self.pop_scope()
 
-        self._scope_stack[-1].expr_queue.append(
+        is_inverted: bool = ctx.NOT() is not None
+
+        self.get_scope().expr_queue.append(
             MembershipFilterExpression(
-                expr=VariableExpression(ctx.VARIABLE().getText()),  # type: ignore
+                is_inverted=is_inverted,
+                expr=VariableExpression(ctx.variable().IDENTIFIER().getText()),  # type: ignore
                 values=scope.expr_queue,
             )
         )
 
     def exitAtom(self, ctx: DroltaParser.AtomContext):
-        if ctx.VARIABLE():
-            self._scope_stack[-1].expr_queue.append(
-                VariableExpression(ctx.VARIABLE().getText())  # type: ignore
+        if ctx.variable():
+            self.get_scope().expr_queue.append(
+                VariableExpression(ctx.variable().IDENTIFIER().getText())  # type: ignore
             )
             return
 
         if ctx.INT_LITERAL():
-            self._scope_stack[-1].expr_queue.append(
+            self.get_scope().expr_queue.append(
                 IntExpression(int(ctx.INT_LITERAL().getText()))  # type: ignore
             )
             return
 
         if ctx.FLOAT_LITERAL():
-            self._scope_stack[-1].expr_queue.append(
+            self.get_scope().expr_queue.append(
                 FloatExpression(float(ctx.FLOAT_LITERAL().getText()))  # type: ignore
             )
             return
 
         if ctx.STRING_LITERAL():
-            self._scope_stack[-1].expr_queue.append(
+            self.get_scope().expr_queue.append(
                 StringExpression(str(ctx.STRING_LITERAL().getText()))  # type: ignore
             )
             return
 
-        if ctx.BOOLEAN_LITERAL():  # type: ignore
-            if ctx.FLOAT_LITERAL().getText() == "TRUE":  # type: ignore
-                self._scope_stack[-1].expr_queue.append(BoolExpression(True))
-            else:
-                self._scope_stack[-1].expr_queue.append(BoolExpression(False))
-            return
+        if ctx.getText() == "TRUE":  # type: ignore
+            self.get_scope().expr_queue.append(BoolExpression(True))
 
-        if ctx.NULL():
-            self._scope_stack[-1].expr_queue.append(NullExpression())
+        if ctx.getText() == "FALSE":  # type: ignore
+            self.get_scope().expr_queue.append(BoolExpression(False))
 
-    def new_scope(self):
-        self._scope_stack.append(_ListenerScope())
+        if ctx.getText() == "NULL":  # type: ignore
+            self.get_scope().expr_queue.append(NullExpression())
+
+    def new_scope(self) -> _ListenerScope:
+        """Create a new listener scope"""
+
+        scope = _ListenerScope()
+        self._scope_stack.append(scope)
+        return scope
+
+    def get_scope(self) -> _ListenerScope:
+        """Get the current scope."""
+
+        if self._scope_stack:
+            return self._scope_stack[-1]
+
+        return self.new_scope()
 
     def pop_scope(self) -> _ListenerScope:
+        """Pop the current scope from the stack."""
+
         return self._scope_stack.pop()
 
     @staticmethod

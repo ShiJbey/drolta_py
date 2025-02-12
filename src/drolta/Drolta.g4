@@ -2,40 +2,49 @@ grammar Drolta;
 
 // Parser Rules
 
-prog: (prog_statement S_COL)* EOF;
+prog: prog_statement (S_COL prog_statement)* S_COL? EOF;
 
 prog_statement: alias_declaration | rule_declaration | query;
 
 alias_declaration:
 	ALIAS original = IDENTIFIER AS alias = IDENTIFIER;
 
-rule_declaration: define_clause where_clause;
+rule_declaration:
+	define_clause where_clause group_by_statement? order_by_statement? limit_statement?;
 
 define_clause:
-	DEFINE IDENTIFIER OPEN_PAR (VARIABLE (COMMA VARIABLE)*)? CLOSE_PAR;
+	DEFINE ruleName = IDENTIFIER OPEN_PAR (
+		result_var (COMMA result_var)*
+	)? CLOSE_PAR;
 
-query: find_clause where_clause post_processing_statements*;
+query:
+	find_clause where_clause group_by_statement? order_by_statement? limit_statement?;
 
-find_clause: FIND (VARIABLE (COMMA VARIABLE)*)?;
+find_clause: FIND (result_var (COMMA result_var)*)?;
+
+result_var:
+	aggregateName = IDENTIFIER OPEN_PAR variable CLOSE_PAR (
+		AS alias = IDENTIFIER
+	)?
+	| variable (AS alias = IDENTIFIER)?;
 
 where_clause: WHERE (where_statement (where_statement)*)?;
 
-post_processing_statements:
-	order_by_statement
-	| group_by_statement
-	| limit_statement;
+order_by_statement:
+	ORDER BY ordering_term (COMMA ordering_term)*;
 
-order_by_statement: ORDER BY VARIABLE;
+ordering_term: variable (ASC | DESC)? (NULLS (FIRST | LAST))?;
 
-group_by_statement: GROUP BY VARIABLE;
+group_by_statement: GROUP BY variable (COMMA variable)*;
 
-limit_statement: LIMIT INT_LITERAL;
+limit_statement:
+	LIMIT limitVal = INT_LITERAL (OFFSET offsetVal = INT_LITERAL)?;
 
 where_statement: filter_statement | predicate_statement;
 
 filter_statement:
-	OPEN_PAR left = VARIABLE op = comparison_operator right = atom CLOSE_PAR	# ComparisonFilter
-	| OPEN_PAR left = VARIABLE IN atom_list										# InFilter
+	OPEN_PAR left = variable op = comparison_operator right = atom CLOSE_PAR	# ComparisonFilter
+	| OPEN_PAR left = variable NOT? IN atom_list CLOSE_PAR						# InFilter
 	| OPEN_PAR left = filter_statement AND right = filter_statement CLOSE_PAR	# AndFilter
 	| OPEN_PAR left = filter_statement OR right = filter_statement CLOSE_PAR	# OrFilter
 	| OPEN_PAR NOT filter_statement CLOSE_PAR									# NotFilter;
@@ -53,12 +62,15 @@ predicate_statement:
 predicate_param: IDENTIFIER EQ atom;
 
 atom:
-	VARIABLE
+	variable
 	| INT_LITERAL
 	| FLOAT_LITERAL
 	| STRING_LITERAL
-	| BOOLEAN_LITERAL
-	| NULL				;
+	| NULL
+	| TRUE
+	| FALSE;
+
+variable: '?' IDENTIFIER;
 
 // LEXER RULES
 
@@ -90,14 +102,17 @@ LTE: '<=';
 LT: '<';
 GTE: '>=';
 GT: '>';
-
-VARIABLE: '?' [a-zA-Z_\u007F-\uFFFF] [a-zA-Z_0-9\u007F-\uFFFF]*;
+ASC: 'ASC';
+DESC: 'DESC';
+OFFSET: 'OFFSET';
+FIRST: 'FIRST';
+LAST: 'LAST';
+NULLS: 'NULLS';
+NULL: 'NULL';
+TRUE: 'TRUE';
+FALSE: 'FALSE';
 
 IDENTIFIER: [a-zA-Z_\u007F-\uFFFF] [a-zA-Z_0-9\u007F-\uFFFF]*;
-
-BOOLEAN_LITERAL: 'TRUE' | 'FALSE';
-
-NULL: 'NULL';
 
 INT_LITERAL: [-+]? [1-9][0-9]*;
 
@@ -111,6 +126,3 @@ SINGLE_LINE_COMMENT:
 MULTILINE_COMMENT: '/*' .*? '*/' -> channel(HIDDEN);
 
 WHITESPACE: [ \u000B\t\r\n] -> channel(HIDDEN);
-
-fragment HEX_DIGIT: [0-9A-F];
-fragment DIGIT: [0-9];

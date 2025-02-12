@@ -2,10 +2,13 @@
 
 from __future__ import annotations
 
-import dataclasses
 import enum
 import logging
-from typing import cast
+import sqlite3
+from typing import Any, Generator, Iterable, Optional, cast
+
+import attrs
+import sqlparse
 
 from drolta.ast import (
     ASTVisitor,
@@ -19,7 +22,7 @@ from drolta.ast import (
     QueryExpression,
     is_filter_expression,
 )
-from drolta.data import EngineData, RuleData
+from drolta.data import EngineData, ResultVariable, RuleData
 from drolta.errors import ProgrammingError
 
 _logger = logging.getLogger(__name__)
@@ -44,6 +47,8 @@ def get_execution_order(node: ExpressionNode) -> int:
 def cycle_check_dfs(
     aliases: dict[str, str], value: str, visited: set[str], stack: list[str]
 ) -> tuple[bool, str]:
+    """Perform Depth-First Search to check for cycles."""
+
     if value not in visited:
         visited.add(value)
         stack.append(value)
@@ -78,7 +83,20 @@ def has_alias_cycle(aliases: dict[str, str]) -> tuple[bool, str]:
     return False, ""
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
+def sqlite_dtype_to_py(d_type: str) -> str:
+    """Convert SQLite data type name to python type name."""
+
+    if d_type == "INT":
+        return "int"
+    elif d_type == "TEXT":
+        return "str"
+    elif d_type == "REAL":
+        return "float"
+
+    return "object"
+
+
+@attrs.define(frozen=True, slots=True)
 class TempResult:
     """Information about an intermediate result of a query."""
 
@@ -93,15 +111,86 @@ class TempResult:
         return sorted(a.output_vars.intersection(b.output_vars))
 
 
-@dataclasses.dataclass(slots=True)
+@attrs.define(frozen=True, slots=True)
+class ColumnInfo:
+    """Information about a column in a table."""
+
+    name: str
+    """The name of the column."""
+    d_type: str
+    """The data type (int | str)."""
+
+
+class DroltaResult:
+    """The result of a Drolta Query.
+
+    This class wraps a sqlite3 Cursor object to ensure that all temporary
+    tables are removed at the start of a new query.
+    """
+
+    __slots__ = ("_column_info", "_has_read_data", "_cursor")
+
+    _column_info: list[ColumnInfo]
+    _has_read_data: bool
+    _cursor: Optional[sqlite3.Cursor]
+
+    def __init__(
+        self, columns: list[ColumnInfo], cursor: Optional[sqlite3.Cursor] = None
+    ) -> None:
+        self._column_info = [*columns]
+        self._has_read_data = False
+        self._cursor = cursor
+
+    @property
+    def description(self) -> Iterable[ColumnInfo]:
+        """Get information about the columns in the result."""
+        return [*self._column_info]
+
+    def fetch_all(self) -> list[Any]:
+        """Get all results from the last query."""
+
+        if self._has_read_data:
+            raise RuntimeError("Data already fetched from this result.")
+
+        self._has_read_data = True
+
+        if self._cursor is None:
+            return []
+
+        result = self._cursor.fetchall()
+        self._cursor.close()
+        return result
+
+    def fetch_chunks(self, size: int) -> Generator[list[Any], Any, None]:
+        """Fetch the next batch of results."""
+
+        if self._has_read_data:
+            raise RuntimeError("Data already fetched from this result.")
+
+        self._has_read_data = True
+
+        if self._cursor is None:
+            yield []
+            return
+
+        next_batch = self._cursor.fetchmany(size)
+
+        while next_batch:
+            yield next_batch
+            next_batch = self._cursor.fetchmany(size)
+
+        self._cursor.close()
+
+
+@attrs.define(slots=True)
 class Scope:
     """Information about the current variable scope of the query."""
 
     scope_id: int
     """The ID of the current scope."""
-    output_vars: list[tuple[str, str]] = dataclasses.field(default_factory=list)
+    output_vars: list[ResultVariable] = attrs.field(factory=list)
     """Variables output by this scope."""
-    tables: list[TempResult] = dataclasses.field(default_factory=list)
+    tables: list[TempResult] = attrs.field(factory=list)
     """Temporary result tables."""
     next_table_id: int = 1
     """The ID assigned to the next table in this scope."""
@@ -116,30 +205,41 @@ class InterpreterMode(enum.IntEnum):
     """Only allows for query operations."""
 
 
+SUPPORTED_AGGREGATES = ("COUNT", "MAX", "MIN", "AVG", "SUM")
+"""Aggregate functions supported by Drolta."""
+
+
 class Interpreter(ASTVisitor):
     """Interpreter used for scripts."""
 
     TEMP_TABLE_PREFIX = "temp__"
     """Name prefix for all temporary tables created by the query engine."""
 
-    __slots__ = ("engine_data", "mode", "scope_stack")
+    __slots__ = ("db", "engine_data", "mode", "scope_stack", "result")
 
+    db: sqlite3.Connection
+    """Database connection."""
     engine_data: EngineData
     """State data for the query engine."""
     mode: InterpreterMode
     """Current interpreter mode."""
     scope_stack: list[Scope]
     """Stack of scopes used during query evaluation."""
+    result: DroltaResult
+    """Cursor with results."""
 
     def __init__(
         self,
+        db: sqlite3.Connection,
         engine_data: EngineData,
         mode: InterpreterMode = InterpreterMode.SCRIPT_EVAL,
     ) -> None:
         super().__init__()
+        self.db = db
         self.engine_data = engine_data
         self.mode = mode
         self.scope_stack = []
+        self.result = DroltaResult([])
 
     def visit_declare_alias(self, node: DeclareAliasExpression):
         if self.mode == InterpreterMode.QUERY_EVAL:
@@ -160,10 +260,23 @@ class Interpreter(ASTVisitor):
         if self.mode == InterpreterMode.QUERY_EVAL:
             raise ProgrammingError("Rule declarations not allowed while querying.")
 
+        result_vars: list[ResultVariable] = []
+        for entry in node.result_vars:
+            result_vars.append(
+                ResultVariable(
+                    var_name=entry.var_name,
+                    aggregate_name=entry.aggregate_name,
+                    alias=entry.alias,
+                )
+            )
+
         rule = RuleData(
             name=node.name,
-            params=[*node.params],
+            result_vars=result_vars,
             where_expressions=[*node.where_expressions],
+            group_by=node.group_by,
+            order_by=node.order_by,
+            limit=node.limit,
         )
 
         self.engine_data.rules[rule.name] = rule
@@ -174,15 +287,20 @@ class Interpreter(ASTVisitor):
         if self.mode == InterpreterMode.SCRIPT_EVAL:
             raise ProgrammingError("Queries not allowed while loading scripts.")
 
-        self.scope_stack.clear()
+        self.clear_scope_stack()
 
-        # This is where the magic will happen.
         _logger.debug("Evaluating query.")
 
-        # Create a new base scope
         scope = self.new_scope()
-        # Remove the "?" prefix from output params
-        scope.output_vars = [(var_name[1:], alias) for var_name, alias in node.params]
+
+        for entry in node.result_vars:
+            scope.output_vars.append(
+                ResultVariable(
+                    var_name=entry.var_name,
+                    aggregate_name=entry.aggregate_name,
+                    alias=entry.alias,
+                )
+            )
 
         # Sort expressions to push filters and not-predicate expressions
         # to the end of the query.
@@ -210,49 +328,77 @@ class Interpreter(ASTVisitor):
         # all the variables in output vars and assign them to any aliases
 
         output_cols: list[str] = []
-        for var_name, alias in self.get_scope().output_vars:
-            if alias:
-                output_cols.append(f"{var_name} AS {alias}")
-            else:
-                output_cols.append(str(var_name))
+        for entry in self.get_scope().output_vars:
+            if entry.aggregate_name:
+                if entry.aggregate_name not in SUPPORTED_AGGREGATES:
+                    raise ProgrammingError(f"Use of unsupported aggregate: {entry}")
 
-        sql_statement = (
-            "SELECT DISTINCT\n"
-            f"\t{', '.join(output_cols)}\n"
-            "FROM\n"
-            f"\t{result_table.table_name}\n"
-        )
+            output_cols.append(str(entry))
 
-        if node.order_by:
-            sql_statement += f"{node.order_by}\n"
+        sql_statement = f"""
+            SELECT DISTINCT {', '.join(output_cols)}
+            FROM {result_table.table_name}
+            """
 
         if node.group_by:
-            sql_statement += f"{node.group_by}\n"
+            sql_statement += f"{node.group_by} "
+
+        if node.order_by:
+            sql_statement += f"{node.order_by} "
 
         if node.limit:
-            sql_statement += f"{node.limit}\n"
+            sql_statement += f"{node.limit} "
 
         sql_statement += ";"
 
-        _logger.debug("Calculating Final Output:\n%s", sql_statement)
+        _logger.debug(
+            "Calculating Final Output:\n%s"
+            % sqlparse.format(sql_statement, reindent=True, keyword_case="upper")
+        )
 
-        cursor = self.engine_data.db.cursor()
+        cursor = self.db.cursor()
 
         result = cursor.execute(sql_statement)
 
-        self.engine_data.result = result
+        column_info_cursor = self.db.cursor()
+
+        raw_column_data: dict[str, str] = {
+            k: v
+            for k, v in column_info_cursor.execute(
+                f"SELECT name, type FROM pragma_table_info('{result_table.table_name}')"
+            ).fetchall()
+        }
+
+        column_info: list[ColumnInfo] = []
+        for entry in self.get_scope().output_vars:
+            if entry.var_name in raw_column_data:
+                if entry.alias:
+                    column_info.append(
+                        ColumnInfo(
+                            entry.alias,
+                            sqlite_dtype_to_py(raw_column_data[entry.var_name]),
+                        )
+                    )
+                else:
+                    column_info.append(
+                        ColumnInfo(
+                            entry.var_name,
+                            sqlite_dtype_to_py(raw_column_data[entry.var_name]),
+                        )
+                    )
+
+        self.result = DroltaResult(columns=column_info, cursor=result)
 
     def visit_program(self, node: ProgramNode):
+        self.result = DroltaResult([])
+
         for child in node.children:
             self.visit(child)
 
     def visit_rule(self, name: str, node: PredicateExpression):
-        current_scope = self.new_scope()
+        """Evaluates a predicate expression as a rule."""
 
-        output_vars: list[str] = []
-        for _, expr in node.params:
-            if expr.get_expression_type() == ExpressionType.VARIABLE:
-                output_vars.append(str(expr))
+        self.new_scope()
 
         rule = self.engine_data.rules[name]
 
@@ -277,32 +423,7 @@ class Interpreter(ASTVisitor):
 
         self._force_join_all_tables()
 
-        result_table = current_scope.tables[-1]
-
-        self.pop_scope()
-
-        # Perform a select over the result table using the output vars
-        sql_statement = self.get_predicate_select_expr(
-            result_table.table_name, node.params
-        )
-
-        table_name = self.get_temp_table_name()
-
-        sql_temp_table_statement = (
-            f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_statement}"
-        )
-
-        _logger.debug("Calculating Rule Output:\n%s", sql_temp_table_statement)
-
-        cursor = self.engine_data.db.cursor()
-
-        cursor.execute(sql_temp_table_statement)
-
-        self.engine_data.db.commit()
-
-        self.get_scope().tables.append(
-            TempResult(table_name=table_name, output_vars=set(output_vars))
-        )
+        self.execute_rule_sql(node, rule)
 
     def dispatch_visit_predicate(self, node: PredicateExpression):
         """Manages visiting predicates as true predicates or rules."""
@@ -314,37 +435,10 @@ class Interpreter(ASTVisitor):
         else:
             self.visit_predicate(predicate_name, node)
 
-    def visit_predicate(self, name: str, node: PredicateExpression):
+    def visit_predicate(self, predicate_table_name: str, node: PredicateExpression):
         """Evaluate predicate expression against a table in the database."""
 
-        current_scope = self.get_scope()
-
-        output_vars: list[str] = []
-        for _, expr in node.params:
-            if expr.get_expression_type() == ExpressionType.VARIABLE:
-                output_vars.append(str(expr))
-
-        # This is assumed to be a sqlite table
-        # SQLite will throw an error if it is not
-        sql_statement = Interpreter.get_predicate_select_expr(name, node.params)
-
-        table_name = self.get_temp_table_name()
-
-        sql_temp_table_statement = (
-            f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_statement}"
-        )
-
-        _logger.debug("Executing predicate select:\n%s", sql_temp_table_statement)
-
-        cursor = self.engine_data.db.cursor()
-
-        cursor.execute(sql_temp_table_statement)
-
-        self.engine_data.db.commit()
-
-        current_scope.tables.append(
-            TempResult(table_name=table_name, output_vars=set(output_vars))
-        )
+        self.execute_predicate_sql(predicate_table_name, node)
 
     def visit_filter(self, node: ExpressionNode):
         """Evaluate predicate expression."""
@@ -353,16 +447,9 @@ class Interpreter(ASTVisitor):
         # on them.
         self._force_join_all_tables()
 
-        result_table = self.get_scope().tables[-1]
+        result_table = self.get_scope().tables.pop()
 
-        sql_statement = (
-            "SELECT\n"
-            "\t*\n"
-            "FROM\n"
-            f"\t{result_table.table_name}\n"
-            "WHERE\n"
-            f"\n{node}"
-        )
+        sql_statement = f"SELECT * FROM {result_table.table_name} WHERE {node}"
 
         table_name = self.get_temp_table_name()
 
@@ -371,21 +458,26 @@ class Interpreter(ASTVisitor):
         )
 
         sql_temp_table_statement = (
-            f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_statement};"
+            f"CREATE TEMPORARY TABLE {table_name} AS {sql_statement};"
         )
 
-        _logger.debug("Filtering Output:\n%s", sql_temp_table_statement)
+        _logger.debug(
+            "Filtering Output:\n%s"
+            % sqlparse.format(
+                sql_temp_table_statement, reindent=True, keyword_case="upper"
+            )
+        )
 
-        cursor = self.engine_data.db.cursor()
+        cursor = self.db.cursor()
 
         cursor.execute(sql_temp_table_statement)
 
         # delete the old temp_table
         cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
 
-        self.engine_data.db.commit()
+        self.db.commit()
 
-        self.get_scope().tables.pop()
+        cursor.close()
 
         self.get_scope().tables.append(new_result_table)
 
@@ -402,11 +494,11 @@ class Interpreter(ASTVisitor):
         else:
             raise ProgrammingError("Not statement expects a predicate or rule.")
 
-        result_table = self.get_scope().tables[-1]
+        result_table = self.get_scope().tables.pop()
 
         self.pop_scope()
 
-        last_table = self.get_scope().tables[-1]
+        last_table = self.get_scope().tables.pop()
 
         table_name = self.get_temp_table_name()
 
@@ -422,39 +514,39 @@ class Interpreter(ASTVisitor):
                 for v in shared_vars
             )
 
-            sql_statement = (
-                "SELECT\n"
-                "\t*\n"
-                "FROM\n"
-                f"\t{last_table.table_name}\n"
-                "WHERE\n"
-                "\tNOT EXISTS (\n"
-                "\t\tSELECT\n"
-                "\t\t\t1\n"
-                "\t\tFROM\n"
-                f"\t\t\t{result_table.table_name}\n"
-                "\t\tWHERE\n"
-                f"\t\t\t{where_filters}"
-                ")"
-            )
+            sql_statement = f"""
+                SELECT *
+                FROM {last_table.table_name}
+                WHERE
+                  NOT EXISTS (
+                    SELECT 1
+                    FROM {result_table.table_name}
+                    WHERE {where_filters}
+                  )
+                """
 
             sql_temp_table_statement = (
-                f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_statement};\n"
+                f"CREATE TEMPORARY TABLE {table_name} AS {sql_statement};"
             )
 
-            _logger.debug("Joining Not Join:\n%s", sql_temp_table_statement)
+            _logger.debug(
+                "Joining Not Join:\n%s"
+                % sqlparse.format(
+                    sql_temp_table_statement, reindent=True, keyword_case="upper"
+                )
+            )
 
-            cursor = self.engine_data.db.cursor()
+            cursor = self.db.cursor()
 
             cursor.execute(sql_temp_table_statement)
 
             cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
 
-            cursor.execute(f"DROP TABLE IF EXISTS {last_table.table_name}")
+            cursor.execute(f"DROP TABLE IF EXISTS {last_table.table_name};")
 
-            self.engine_data.db.commit()
+            self.db.commit()
 
-            self.get_scope().tables.pop()
+            cursor.close()
 
             self.get_scope().tables.append(not_join_result)
 
@@ -468,9 +560,7 @@ class Interpreter(ASTVisitor):
 
             # Create a large join under a new temp_table.
 
-            sql_join_statement = (
-                "SELECT\n" "*\n" "FROM\n" f"\t{last_table.table_name}\n"
-            )
+            sql_join_statement = f"SELECT * FROM {last_table.table_name} "
 
             output_vars: set[str] = set(last_table.output_vars)
 
@@ -500,12 +590,17 @@ class Interpreter(ASTVisitor):
             table_name = self.get_temp_table_name()
 
             sql_temp_table_statement = (
-                f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_join_statement}"
+                f"CREATE TEMPORARY TABLE {table_name} AS {sql_join_statement};"
             )
 
-            _logger.debug("Joining All Tables:\n%s", sql_temp_table_statement)
+            _logger.debug(
+                "Joining All Tables:\n%s"
+                % sqlparse.format(
+                    sql_temp_table_statement, reindent=True, keyword_case="upper"
+                )
+            )
 
-            cursor = self.engine_data.db.cursor()
+            cursor = self.db.cursor()
 
             cursor.execute(sql_temp_table_statement)
 
@@ -515,7 +610,9 @@ class Interpreter(ASTVisitor):
 
             current_scope.tables.clear()
 
-            self.engine_data.db.commit()
+            self.db.commit()
+
+            cursor.close()
 
             current_scope.tables.append(
                 TempResult(table_name=table_name, output_vars=output_vars)
@@ -532,6 +629,7 @@ class Interpreter(ASTVisitor):
             shared_table_indexes: set[int] = set()
             output_vars: set[str] = set(last_table.output_vars)
             have_shared: list[tuple[int, list[str]]] = []
+
             for table_idx, other_table in enumerate(current_scope.tables[:-1]):
                 shared_vars = TempResult.get_common_vars(last_table, other_table)
                 if shared_vars:
@@ -542,9 +640,7 @@ class Interpreter(ASTVisitor):
             if have_shared:
                 # Create a large join under a new temp_table.
 
-                sql_join_statement = (
-                    "SELECT\n" "*\n" "FROM\n" f"\t{last_table.table_name}\n"
-                )
+                sql_join_statement = f"SELECT * FROM {last_table.table_name} "
 
                 for idx, var_names in have_shared:
                     temp_table = current_scope.tables[idx]
@@ -555,18 +651,23 @@ class Interpreter(ASTVisitor):
                     )
 
                     sql_join_statement += (
-                        f"JOIN {temp_table.table_name} ON {join_cols}\n"
+                        f"JOIN {temp_table.table_name} ON {join_cols} "
                     )
 
                 table_name = self.get_temp_table_name()
 
                 sql_temp_table_statement = (
-                    f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_join_statement}"
+                    f"CREATE TEMPORARY TABLE {table_name} AS {sql_join_statement};"
                 )
 
-                _logger.debug("Joining Tables:\n%s", sql_temp_table_statement)
+                _logger.debug(
+                    "Joining Tables:\n%s"
+                    % sqlparse.format(
+                        sql_temp_table_statement, reindent=True, keyword_case="upper"
+                    )
+                )
 
-                cursor = self.engine_data.db.cursor()
+                cursor = self.db.cursor()
 
                 cursor.execute(sql_temp_table_statement)
 
@@ -580,45 +681,154 @@ class Interpreter(ASTVisitor):
 
                         cursor.execute(f"DROP TABLE IF EXISTS {table.table_name};")
 
-                self.engine_data.db.commit()
+                self.db.commit()
+
+                cursor.close()
 
                 current_scope.tables.append(
                     TempResult(table_name=table_name, output_vars=output_vars)
                 )
 
-    @staticmethod
-    def get_predicate_select_expr(
-        name: str, params: list[tuple[str, ExpressionNode]]
-    ) -> str:
-        """Generate a SQLite SELECT expression from the predicate data."""
+    def execute_predicate_sql(self, table_name: str, node: PredicateExpression) -> None:
+        """Execute SQL query for a predicate expression."""
 
-        variable_params: list[tuple[str, str]] = []
-        where_params: list[tuple[str, str]] = []
-        for column_name, expr in params:
+        output_vars: set[str] = set()
+        column_statements: list[str] = []
+        where_statements: list[str] = []
+
+        for column_name, expr in node.params:
             if expr.get_expression_type() == ExpressionType.VARIABLE:
-                variable_params.append((column_name, str(expr)))
+                column_statements.append(f'{column_name} AS "{expr}"')
+                output_vars.add(str(expr))
             else:
-                where_params.append((column_name, str(expr)))
+                if expr.get_expression_type() == ExpressionType.NULL:
+                    where_statements.append(f"{column_name} IS {expr}")
+                else:
+                    where_statements.append(f"{column_name} = {expr}")
 
-        column_aliases = ", ".join(
-            f'{col} AS "{var_name}"' for col, var_name in variable_params
+        if len(column_statements) == 0:
+            raise ProgrammingError(f"Predicate '{node}' expects one output variable.")
+
+        if where_statements:
+            select_expr = f"""
+                SELECT {', '.join(column_statements)}
+                FROM {table_name}
+                WHERE {' AND '.join(where_statements)}
+                """
+        else:
+            select_expr = f"SELECT {', '.join(column_statements)} FROM {table_name} "
+
+        temp_table_name = self.get_temp_table_name()
+
+        sql_statement = f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_expr};"
+
+        _logger.debug(
+            "Executing predicate select: \n%s"
+            % sqlparse.format(sql_statement, reindent=True, keyword_case="upper")
         )
 
-        if where_params:
-            where_filters = " AND ".join(f"{col}={val}" for col, val in where_params)
+        cursor = self.db.cursor()
 
-            select_expr = (
-                "SELECT\n"
-                f"\t{column_aliases}\n"
-                "FROM\n"
-                f"\t{name}\n"
-                "WHERE\n"
-                f"\t{where_filters};\n"
-            )
+        cursor.execute(sql_statement)
+
+        self.db.commit()
+
+        cursor.close()
+
+        self.get_scope().tables.append(TempResult(temp_table_name, output_vars))
+
+    def execute_rule_sql(self, node: PredicateExpression, rule: RuleData) -> None:
+        """Get the final SQL expression for a rule expression."""
+
+        # The variables output by this rules
+        output_vars: set[str] = set()
+        # Where statements used in the final SQL query
+        where_statements: list[str] = []
+        # Column selection statements
+        column_statements: list[str] = []
+        # Column selection statements used in the CTE
+        cte_column_statements: list[str] = []
+
+        for entry in rule.result_vars:
+            if entry.aggregate_name:
+                if entry.aggregate_name not in SUPPORTED_AGGREGATES:
+                    raise ProgrammingError(f"Use of unsupported aggregate: {entry}")
+
+            cte_column_statements.append(str(entry))
+
+        for column_name, expr in node.params:
+            # Add input parameters mapped to variables to the set of output vars
+            if expr.get_expression_type() == ExpressionType.VARIABLE:
+                column_statements.append(f'{column_name} AS "{expr}"')
+                output_vars.add(str(expr))
+
+            # If it is not a variable, then this is a column mapped to a constant
+            # and must be added to the WHERE section of the final SQL query
+            else:
+                if expr.get_expression_type() == ExpressionType.NULL:
+                    where_statements.append(f"{column_name} IS {expr}")
+                else:
+                    where_statements.append(f"{column_name} = {expr}")
+
+        result_table = self.get_scope().tables.pop()
+
+        if len(column_statements) == 0:
+            raise ProgrammingError(f"Rule '{node}' expects one output variable.")
+
+        if where_statements:
+
+            select_expr = f"""
+                WITH {rule.name} AS (
+                  SELECT {', '.join(cte_column_statements)}
+                  FROM {result_table.table_name}
+                  {' ' + str(rule.group_by) + ' ' if rule.group_by else ''}
+                  {' ' + str(rule.order_by) + ' ' if rule.order_by else ''}
+                  {' ' + str(rule.limit) + ' ' if rule.limit else ''}
+                )
+                SELECT {', '.join(column_statements)}
+                FROM {rule.name}
+                WHERE {' AND '.join(where_statements)}
+                """
+
         else:
-            select_expr = "SELECT\n" f"\t{column_aliases}\n" "FROM\n" f"\t{name};\n"
+            select_expr = f"""
+                WITH {rule.name} AS (
+                  SELECT {', '.join(cte_column_statements)}
+                  FROM {result_table.table_name}
+                  {' ' + str(rule.group_by) + ' ' if rule.group_by else ''}
+                  {' ' + str(rule.order_by) + ' ' if rule.order_by else ''}
+                  {' ' + str(rule.limit) + ' ' if rule.limit else ''}
+                )
+                SELECT {', '.join(column_statements)}
+                FROM {rule.name}
+                """
 
-        return select_expr
+        self.pop_scope()
+
+        temp_table_name = self.get_temp_table_name()
+
+        sql_temp_table_statement = (
+            f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_expr};"
+        )
+
+        _logger.debug(
+            "Executing Rule SQL:\n%s"
+            % sqlparse.format(
+                sql_temp_table_statement, reindent=True, keyword_case="upper"
+            )
+        )
+
+        cursor = self.db.cursor()
+
+        cursor.execute(sql_temp_table_statement)
+
+        cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
+
+        self.db.commit()
+
+        cursor.close()
+
+        self.get_scope().tables.append(TempResult(temp_table_name, output_vars))
 
     def get_final_predicate_name(self, name: str) -> str:
         """Resolve the final name of a predicate from a potential alias."""
@@ -646,7 +856,10 @@ class Interpreter(ASTVisitor):
 
     def get_scope(self) -> Scope:
         """Get the current scope."""
-        return self.scope_stack[-1]
+        if self.scope_stack:
+            return self.scope_stack[-1]
+
+        return self.new_scope()
 
     def new_scope(self) -> Scope:
         """Push a new scope on the stack."""
@@ -660,4 +873,23 @@ class Interpreter(ASTVisitor):
 
     def pop_scope(self) -> Scope:
         """Pop the current scope."""
+        self.destroy_temporary_tables()
         return self.scope_stack.pop()
+
+    def clear_scope_stack(self) -> None:
+        """Clear all scopes from the stack."""
+
+        while self.scope_stack:
+            self.pop_scope()
+
+    def destroy_temporary_tables(self) -> None:
+        """Destroy all temporary tables at the current scope."""
+
+        cursor = self.db.cursor()
+        scope = self.get_scope()
+
+        while scope.tables:
+            table = scope.tables.pop()
+            cursor.execute(f"DROP TABLE IF EXISTS {table.table_name};")
+
+        self.db.commit()

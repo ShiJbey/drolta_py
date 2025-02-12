@@ -9,6 +9,8 @@ now.
 
 import sqlite3
 
+import pytest
+
 import drolta
 import drolta.engine
 from drolta.interpreter import has_alias_cycle
@@ -88,12 +90,11 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
             (?, ?, ?, ?);
         """,
         [
-            (1, "Targaryen", 50, 1),
-            (2, "Velaryon", 50, 1),
-            (3, "Strong", 50, 0),
-            (4, "Cole", 50, 0),
+            (1, "Targaryen", 85, 1),
+            (2, "Velaryon", 80, 1),
+            (3, "Strong", 20, 0),
+            (4, "Cole", -20, 0),
             (5, "Hightower", 50, 1),
-            (6, "Belmont", 50, 1),
         ],
     )
 
@@ -151,19 +152,19 @@ def test_define_predicate_alias() -> None:
 
     engine.execute_script(
         """
-        ALIAS characters as Character;
+        ALIAS characters AS Character;
         """
     )
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND ?x
         WHERE
-            Character(?x, family="Targaryen");
+            Character(id=?x)
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statement for an expected number of rows.
+    assert len(rows) == 17
 
     db.close()
 
@@ -179,25 +180,25 @@ def test_define_rule_alias() -> None:
 
     engine.execute_script(
         """
-        ALIAS FromNobleFamily as IsNobility;
+        ALIAS FromNobleHouse AS IsNobility;
 
         DEFINE
-            FromNobleFamily(?x)
+            FromNobleHouse(?x)
         WHERE
-            characters(id=?x, family_id=?family_id)
-            family(id=?family_id, is_noble=TRUE);
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, is_noble=TRUE);
         """
     )
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND ?x
         WHERE
-            IsNobility(?x);
+            IsNobility(x=?x);
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statement for an expected number of rows.
+    assert len(rows) == 12
 
     db.close()
 
@@ -214,22 +215,22 @@ def test_define_rule() -> None:
     engine.execute_script(
         """
         DEFINE
-            FromNobleFamily(?x)
+            FromNobleHouse(?x)
         WHERE
-            characters(id=?x, family_id=?family_id)
-            family(id=?family_id, is_noble=TRUE);
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, is_noble=TRUE);
         """
     )
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND ?x
         WHERE
-            FromNobleFamily(?x);
+            FromNobleHouse(x=?x);
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statement for an expected number of rows.
+    assert len(rows) == 12
 
     db.close()
 
@@ -246,33 +247,34 @@ def test_composite_rules() -> None:
     engine.execute_script(
         """
         DEFINE
-            IsVampire(?x)
+            IsAdult(?x)
         WHERE
-            traits(character_id=?x, trait="Vampire");
+            characters(id=?x, life_stage="Adult");
 
         DEFINE
-            FromNobleFamily(?x)
+            FromNobleHouse(?x)
         WHERE
-            characters(id=?x, family_id=?family_id)
-            family(id=?family_id, is_noble=TRUE);
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, is_noble=TRUE);
 
         DEFINE
-            NobleVampire(?x)
+            AdultNoble(?x)
         WHERE
-            IsVampire(?x)
-            FromNobleFamily(?x);
+            IsAdult(x=?x)
+            FromNobleHouse(x=?x);
         """
     )
 
-    result = engine.execute(
+    rows = engine.execute(
         """
-        FIND ?x
+        FIND
+            ?x
         WHERE
-            NobleVampire(?x);
+            AdultNoble(x=?x);
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statements for an expected number of rows
+    assert len(rows) == 7
 
     db.close()
 
@@ -286,15 +288,25 @@ def test_single_predicate_query() -> None:
 
     engine = drolta.engine.QueryEngine(db)
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND ?x
         WHERE
-            Character(?x, family="Targaryen");
+            characters(id=?x);
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statement for an expected number of rows.
+    assert len(rows) == 17
+
+    rows = engine.execute(
+        """
+        FIND ?x, ?house_id
+        WHERE
+            characters(id=?x, house_id=?house_id);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 17
 
     db.close()
 
@@ -308,15 +320,16 @@ def test_query_output_aliases() -> None:
 
     engine = drolta.engine.QueryEngine(db)
 
-    result = engine.execute(
+    rows = engine.execute(
         """
-        FIND ?x AS character_id
+        FIND
+            ?x AS character_id
         WHERE
-            Character(?x, family="Targaryen");
+            characters(id=?x);
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statement for an expected number of rows.
+    assert len(rows) == 17
 
     db.close()
 
@@ -333,22 +346,22 @@ def test_rule_param_aliases() -> None:
     engine.execute_script(
         """
         DEFINE
-            FromNobleFamily(?x AS character_id)
+            FromNobleHouse(?x AS character_id)
         WHERE
-            characters(id=?x, family_id=?family_id)
-            family(id=?family_id, is_noble=TRUE);
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, is_noble=TRUE);
         """
     )
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND ?x
         WHERE
-            FromNobleFamily(?x);
+            FromNobleHouse(character_id=?x);
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statement for an expected number of rows.
+    assert len(rows) == 12
 
     db.close()
 
@@ -362,17 +375,17 @@ def test_multi_predicate_query() -> None:
 
     engine = drolta.engine.QueryEngine(db)
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND
             ?x
         WHERE
-            characters(id=?x, family_id=?family_id)
-            family(id=?family_id, is_noble=TRUE);
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, is_noble=TRUE);
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statements for an expected number of rows
+    assert len(rows) == 12
 
     db.close()
 
@@ -386,18 +399,18 @@ def test_eq_filter() -> None:
 
     engine = drolta.engine.QueryEngine(db)
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND
             ?x
         WHERE
-            characters(id=?x, life_stage=?life_stage, family_id=?family_id)
-            family(id=?family_id, name="Targaryen")
+            characters(id=?x, life_stage=?life_stage, house_id=?house_id)
+            houses(id=?house_id, name="Targaryen")
             (?life_stage = "Adult");
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statements for an expected number of rows
+    assert len(rows) == 3
 
     db.close()
 
@@ -411,18 +424,49 @@ def test_neq_filter() -> None:
 
     engine = drolta.engine.QueryEngine(db)
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND
             ?x
         WHERE
-            characters(id=?x, life_stage=?life_stage, family_id=?family_id)
-            family(id=?family_id, name="Targaryen")
+            characters(id=?x, life_stage=?life_stage, house_id=?house_id)
+            houses(id=?house_id, name="Targaryen")
             (?life_stage != "Adult");
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statements for an expected number of rows
+    assert len(rows) == 3
+
+    engine.execute_script(
+        """
+        ALIAS characters AS Character;
+        ALIAS relations AS Relation;
+        ALIAS houses AS House;
+
+        DEFINE
+            PaternalHalfSiblings(?x, ?y)
+        WHERE
+            Relation(from_id=?x, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?y, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?x, to_id=?x_m, type="Mother")
+            Relation(from_id=?y, to_id=?y_m, type="Mother")
+            ((?x_m != ?y_m) AND (?x != ?y));
+        """
+    )
+
+    rows = engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    ).fetch_all()
+
+    assert len(rows) == 2
 
     db.close()
 
@@ -430,17 +474,97 @@ def test_neq_filter() -> None:
 def test_lt_filter() -> None:
     """Test the less than filter."""
 
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            ?house_id
+        WHERE
+            houses(id=?house_id, reputation=?rep)
+            (?rep < 50);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 2
+
+    db.close()
+
 
 def test_gt_filter() -> None:
     """Test the greater than filter."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            ?house_id
+        WHERE
+            houses(id=?house_id, reputation=?rep)
+            (?rep > 50);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 2
+
+    db.close()
 
 
 def test_lte_filter() -> None:
     """Test the less-than or equal to filter."""
 
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            ?house_id
+        WHERE
+            houses(id=?house_id, reputation=?rep)
+            (?rep <= 50);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 3
+
+    db.close()
+
 
 def test_gte_filter() -> None:
     """Test the greater-than or equal to filter."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            ?house_id
+        WHERE
+            houses(id=?house_id, reputation=?rep)
+            (?rep >= 50);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 3
+
+    db.close()
 
 
 def test_membership_filter() -> None:
@@ -452,18 +576,31 @@ def test_membership_filter() -> None:
 
     engine = drolta.engine.QueryEngine(db)
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND
             ?x
         WHERE
-            characters(id=?x, life_stage=?life_stage, family_id=?family_id)
-            family(id=?family_id, name=?family_name)
-            (?family_name IN ["Belmont", "Targaryen"]);
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, name=?family_name)
+            (?family_name IN ["Velaryon", "Targaryen"]);
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statements for an expected number of rows
+    assert len(rows) == 10
+
+    rows = engine.execute(
+        """
+        FIND
+            ?x
+        WHERE
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, name=?family_name)
+            (?family_name NOT IN ["Velaryon", "Targaryen"]);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 4
 
     db.close()
 
@@ -477,16 +614,40 @@ def test_null_check() -> None:
 
     engine = drolta.engine.QueryEngine(db)
 
-    result = engine.execute(
+    rows = engine.execute(
         """
         FIND
             ?x
         WHERE
-            characters(id=?x, family_id=NULL);
+            characters(id=?x, house_id=NULL);
         """
-    ).fetchall()
+    ).fetch_all()
 
-    # TODO: Add assert statements for an expected number of rows
+    assert len(rows) == 3
+
+    rows = engine.execute(
+        """
+        FIND
+            ?x
+        WHERE
+            characters(id=?x, house_id=?house_id)
+            (?house_id = NULL);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 3
+
+    rows = engine.execute(
+        """
+        FIND
+            ?x
+        WHERE
+            characters(id=?x, house_id=?house_id)
+            (?house_id != NULL);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 14
 
     db.close()
 
@@ -494,21 +655,144 @@ def test_null_check() -> None:
 def test_and_statement() -> None:
     """Test using AND keyword to combine filter statements."""
 
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            ?x
+        WHERE
+            characters(id=?x, house_id=?house_id, is_alive=?is_alive)
+            houses(id=?house_id, name=?family_name)
+            ((?family_name = "Velaryon") AND (?is_alive = FALSE));
+        """
+    ).fetch_all()
+
+    assert len(rows) == 1
+
+    db.close()
+
 
 def test_or_statement() -> None:
     """Test using OR keyword to combine filter statements."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            ?x
+        WHERE
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, name=?family_name)
+            ((?family_name = "Velaryon") OR (?family_name = "Targaryen"));
+        """
+    ).fetch_all()
+
+    assert len(rows) == 10
+
+    db.close()
 
 
 def test_not_filter_statement() -> None:
     """Test using NOT keyword on filter statements."""
 
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            ?x
+        WHERE
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, name=?family_name)
+            (NOT (?family_name IN ["Velaryon", "Targaryen"]));
+        """
+    ).fetch_all()
+
+    assert len(rows) == 4
+
+    rows = engine.execute(
+        """
+        FIND
+            ?x
+        WHERE
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, name=?family_name)
+            (NOT ((?family_name = "Velaryon") OR (?family_name = "Targaryen")));
+        """
+    ).fetch_all()
+
+    assert len(rows) == 4
+
+    db.close()
+
 
 def test_not_predicate_statement() -> None:
     """Test using NOT keyword on predicate statements."""
 
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            ?x
+        WHERE
+            characters(id=?x)
+            NOT characters(id=?x, is_alive=FALSE);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 13
+
 
 def test_not_rule_statement() -> None:
     """Test using NOT keyword on rule statements."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    engine.execute_script(
+        """
+        DEFINE
+            FromNobleHouse(?x)
+        WHERE
+            characters(id=?x, house_id=?house_id)
+            houses(id=?house_id, is_noble=TRUE);
+        """
+    )
+
+    rows = engine.execute(
+        """
+        FIND ?x
+        WHERE
+            characters(id=?x)
+            NOT FromNobleHouse(x=?x);
+        """
+    ).fetch_all()
+
+    assert len(rows) == 5
+
+    db.close()
 
 
 def test_alias_cycle_detection() -> None:
@@ -521,3 +805,494 @@ def test_alias_cycle_detection() -> None:
     aliases["C"] = "F"
 
     assert has_alias_cycle(aliases) == (True, "B")
+
+
+def test_duplicate_queries() -> None:
+    """Test that running the same query twice does not throw duplicate table error."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    engine.execute_script(
+        """
+        ALIAS characters AS Character;
+        ALIAS relations AS Relation;
+        ALIAS houses AS House;
+
+        DEFINE
+            PaternalHalfSiblings(?x, ?y)
+        WHERE
+            Relation(from_id=?x, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?y, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?x, to_id=?x_m, type="Mother")
+            Relation(from_id=?y, to_id=?y_m, type="Mother")
+            ((?x_m != ?y_m) AND (?x != ?y));
+        """
+    )
+
+    engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    )
+
+    engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    )
+
+    db.close()
+
+
+def test_double_fetch_throws_error() -> None:
+    """Ensure that double fetching data throws an exception."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    engine.execute_script(
+        """
+        ALIAS characters AS Character;
+        ALIAS relations AS Relation;
+        ALIAS houses AS House;
+
+        DEFINE
+            PaternalHalfSiblings(?x, ?y)
+        WHERE
+            Relation(from_id=?x, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?y, to_id=?bf, type="BiologicalFather")
+            Relation(from_id=?x, to_id=?x_m, type="Mother")
+            Relation(from_id=?y, to_id=?y_m, type="Mother")
+            ((?x_m != ?y_m) AND (?x != ?y));
+        """
+    )
+
+    result = engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    )
+
+    result.fetch_all()
+
+    with pytest.raises(RuntimeError):
+        result.fetch_all()
+
+    result = engine.execute(
+        """
+        FIND
+        ?siblingId, ?siblingName
+        WHERE
+            Character(id=?adam_id, name="Addam")
+            PaternalHalfSiblings(x=?adam_id, y=?siblingId)
+            Character(id=?siblingId, name=?siblingName)
+        ORDER BY ?siblingId;
+        """
+    )
+
+    # Have to call next() on the generator. Otherwise, the user
+    # technically never read the data and it is still valid
+    # to call fetch_all().
+    next(result.fetch_chunks(20))
+
+    with pytest.raises(RuntimeError):
+        result.fetch_all()
+
+    db.close()
+
+
+def test_count_aggregate() -> None:
+    """Test the COUNT aggregate function."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    engine.execute_script(
+        """
+        ALIAS characters AS Character;
+        ALIAS relations AS Relation;
+        ALIAS houses AS House;
+
+        DEFINE
+            HouseSize(?house_id AS id, COUNT(?character_id) AS size)
+        WHERE
+            Character(id=?character_id, house_id=?house_id)
+            House(id=?house_id)
+        GROUP BY ?house_id
+        ORDER BY ?house_id ASC;
+        """
+    )
+
+    rows = engine.execute(
+        """
+        FIND
+            ?house_id, ?size
+        WHERE
+            HouseSize(id=?house_id, size=?size)
+        ORDER BY ?size DESC;
+        """
+    ).fetch_all()
+
+    assert len(rows) == 5
+    assert rows[0] == (1, 6)
+    assert rows[1] == (2, 4)
+    assert rows[2] == (5, 2)
+
+    db.close()
+
+
+def test_order_by_asc() -> None:
+    """Test ORDER BY ACS clause support."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+    FIND
+        ?character_id, ?house_id
+    WHERE
+        characters(id=?character_id, house_id=?house_id)
+    ORDER BY ?house_id;
+    """
+    ).fetch_all()
+
+    assert rows[0][1] is None
+    assert rows[3][1] == 1
+    assert rows[-1][1] == 5
+
+    rows = engine.execute(
+        """
+    FIND
+        ?character_id, ?house_id
+    WHERE
+        characters(id=?character_id, house_id=?house_id)
+    ORDER BY ?house_id ASC;
+    """
+    ).fetch_all()
+
+    assert rows[0][1] is None
+    assert rows[3][1] == 1
+    assert rows[-1][1] == 5
+
+    rows = engine.execute(
+        """
+    FIND
+        ?character_id, ?house_id
+    WHERE
+        characters(id=?character_id, house_id=?house_id)
+    ORDER BY ?house_id ASC NULLS FIRST;
+    """
+    ).fetch_all()
+
+    assert rows[0][1] is None
+    assert rows[3][1] == 1
+    assert rows[-1][1] == 5
+
+    rows = engine.execute(
+        """
+    FIND
+        ?character_id, ?house_id
+    WHERE
+        characters(id=?character_id, house_id=?house_id)
+    ORDER BY ?house_id ASC NULLS LAST;
+    """
+    ).fetch_all()
+
+    assert rows[0][1] == 1
+    assert rows[6][1] == 2
+    assert rows[-1][1] is None
+
+
+def test_order_by_desc() -> None:
+    """Test ORDER BY DESC clause support."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+    FIND
+        ?character_id, ?house_id
+    WHERE
+        characters(id=?character_id, house_id=?house_id)
+    ORDER BY ?house_id DESC;
+    """
+    ).fetch_all()
+
+    assert rows[0][1] == 5
+    assert rows[2][1] == 4
+    assert rows[-1][1] is None
+
+    rows = engine.execute(
+        """
+    FIND
+        ?character_id, ?house_id
+    WHERE
+        characters(id=?character_id, house_id=?house_id)
+    ORDER BY ?house_id DESC NULLS FIRST;
+    """
+    ).fetch_all()
+
+    assert rows[0][1] is None
+    assert rows[3][1] == 5
+    assert rows[-1][1] == 1
+
+    rows = engine.execute(
+        """
+    FIND
+        ?character_id, ?house_id
+    WHERE
+        characters(id=?character_id, house_id=?house_id)
+    ORDER BY ?house_id DESC NULLS LAST;
+    """
+    ).fetch_all()
+
+    assert rows[0][1] == 5
+    assert rows[2][1] == 4
+    assert rows[-1][1] is None
+
+
+def test_order_by_multiple_columns() -> None:
+    """Test ORDER BY support for multiple columns."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+    FIND
+        ?character_id, ?name, ?house_id
+    WHERE
+        characters(id=?character_id, name=?name, house_id=?house_id)
+    ORDER BY ?house_id ASC, ?name DESC;
+    """
+    ).fetch_all()
+
+    assert rows[0][1] == "Marilda"
+    assert rows[1][1] == "Alyn"
+    assert rows[2][1] == "Addam"
+    assert rows[3][1] == "Viserys"
+
+
+def test_limit() -> None:
+    """Test LIMIT clause support."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+    FIND
+        ?character_id, ?name
+    WHERE
+        characters(id=?character_id, name=?name)
+    ORDER BY ?character_id
+    LIMIT 5;
+    """
+    ).fetch_all()
+
+    assert len(rows) == 5
+    assert rows[0][1] == "Rhaenyra"
+    assert rows[1][1] == "Laenor"
+    assert rows[2][1] == "Harwin"
+    assert rows[3][1] == "Jacaerys"
+    assert rows[4][1] == "Addam"
+
+
+def test_limit_offset() -> None:
+    """Test LIMIT with OFFSET support."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+    FIND
+        ?character_id, ?name
+    WHERE
+        characters(id=?character_id, name=?name)
+    ORDER BY ?character_id
+    LIMIT 5 OFFSET 5;
+    """
+    ).fetch_all()
+
+    assert len(rows) == 5
+    assert rows[0][1] == "Corlys"
+    assert rows[1][1] == "Marilda"
+    assert rows[2][1] == "Alyn"
+    assert rows[3][1] == "Rhaenys"
+    assert rows[4][1] == "Laena"
+
+
+def test_group_by() -> None:
+    """Test GROUP BY support."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+    FIND
+        ?house_id, COUNT(?character_id) AS size
+    WHERE
+        characters(id=?character_id, house_id=?house_id)
+    GROUP BY ?house_id
+    ORDER BY ?size DESC;
+    """
+    ).fetch_all()
+
+    assert len(rows) == 6
+
+
+def test_group_by_multiple_columns() -> None:
+    """Test GROUP BY multiple columns support."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+    FIND
+        ?house_id, ?sex, COUNT(?character_id) AS size
+    WHERE
+        characters(id=?character_id, sex=?sex, house_id=?house_id)
+    GROUP BY ?house_id, ?sex
+    ORDER BY ?size DESC;
+    """
+    ).fetch_all()
+
+    assert len(rows) == 10
+
+
+def test_avg_aggregate() -> None:
+    """Test support for the AVG aggregate function."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+    FIND
+        AVG(?rep) AS avg_rep
+    WHERE
+        houses(reputation=?rep);
+    """
+    ).fetch_all()
+
+    assert rows[0][0] == 43
+
+
+def test_max_aggregate() -> None:
+    """Test support for the MAX aggregate function."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            MAX(?rep)
+        WHERE
+            houses(reputation=?rep);
+        """
+    ).fetch_all()
+
+    assert rows[0][0] == 85
+
+
+def test_min_aggregate() -> None:
+    """Test support for the MIN aggregate function."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            MIN(?rep)
+        WHERE
+            houses(reputation=?rep);
+        """
+    ).fetch_all()
+
+    assert rows[0][0] == -20
+
+
+def test_sum_aggregate() -> None:
+    """Test support for the SUM aggregate function."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    rows = engine.execute(
+        """
+        FIND
+            SUM(?rep)
+        WHERE
+            houses(reputation=?rep);
+        """
+    ).fetch_all()
+
+    assert rows[0][0] == 215

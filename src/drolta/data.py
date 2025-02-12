@@ -1,30 +1,54 @@
-"""Drolta Data Classes.
-
-"""
+"""Drolta Data Classes."""
 
 from __future__ import annotations
 
-import dataclasses
-import sqlite3
+from typing import Optional
 
-from drolta.ast import ExpressionNode
+import attrs
+
+from drolta.ast import (
+    ExpressionNode,
+    GroupByExpression,
+    LimitExpression,
+    OrderByExpression,
+)
 
 
-@dataclasses.dataclass(slots=True)
+@attrs.define(slots=True)
+class ResultVariable:
+    """A query rule result variable."""
+
+    var_name: str
+    aggregate_name: str = ""
+    alias: str = ""
+
+    def __str__(self):
+        final_str = self.var_name
+
+        if self.aggregate_name:
+            final_str = f"{self.aggregate_name}({final_str})"
+
+        if self.alias:
+            final_str = f'{final_str} AS "{self.alias}"'
+
+        return final_str
+
+
+@attrs.define(slots=True)
 class RuleData:
     """A Drolta query rule."""
 
     name: str
-    params: list[tuple[str, str]]
+    result_vars: list[ResultVariable]
     where_expressions: list[ExpressionNode]
+    order_by: Optional[OrderByExpression]
+    group_by: Optional[GroupByExpression]
+    limit: Optional[LimitExpression]
 
 
-@dataclasses.dataclass(slots=True)
+@attrs.define(slots=True)
 class EngineData:
     """Holds all the data managed by the engine."""
 
-    db: sqlite3.Connection
-    result: sqlite3.Cursor
-    aliases: dict[str, str] = dataclasses.field(default_factory=dict)
-    rules: dict[str, RuleData] = dataclasses.field(default_factory=dict)
-    temp_table_names: list[str] = dataclasses.field(default_factory=list)
+    aliases: dict[str, str] = attrs.field(factory=dict)
+    rules: dict[str, RuleData] = attrs.field(factory=dict)

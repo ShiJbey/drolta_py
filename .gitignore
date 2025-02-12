@@ -179,3 +179,5 @@ pyrightconfig.json
 
 # ANTLR4 VSCODE Extension
 .antlr/
+
+.DS_Store

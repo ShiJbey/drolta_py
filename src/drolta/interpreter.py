@@ -193,7 +193,6 @@ class FormattedSqlString:
         self.raw_sql = raw_sql
 
     def __str__(self) -> str:
-        print("APPLES!!!")
         return sqlparse.format(self.raw_sql, reindent=True, keyword_case="upper")  # type: ignore
 
 

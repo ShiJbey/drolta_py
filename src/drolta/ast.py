@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import dataclasses
 import enum
 import logging
 from abc import ABC, abstractmethod
@@ -10,6 +9,7 @@ from sqlite3 import ProgrammingError
 from typing import Any, Optional, cast
 
 import antlr4
+import attrs
 
 from drolta.parsing.DroltaLexer import DroltaLexer
 from drolta.parsing.DroltaListener import DroltaListener
@@ -553,7 +553,7 @@ class NullsOrderingOp(enum.IntEnum):
     LAST = enum.auto()
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
+@attrs.define(frozen=True, slots=True)
 class OrderingTerm:
     """A term used to order query output."""
 
@@ -678,16 +678,14 @@ class ASTVisitor(ABC):
         raise TypeError(f"Unsupported node expression type: {expression_type.name}")
 
 
-@dataclasses.dataclass(slots=True)
+@attrs.define(slots=True)
 class _ListenerScope:
     """A scope of data used within the script listener."""
 
     rule_name: str = ""
-    result_vars: list[ResultVarExpression] = dataclasses.field(default_factory=list)
-    expr_queue: list[ExpressionNode] = dataclasses.field(default_factory=list)
-    predicate_params: list[tuple[str, ExpressionNode]] = dataclasses.field(
-        default_factory=list
-    )
+    result_vars: list[ResultVarExpression] = attrs.field(factory=list)
+    expr_queue: list[ExpressionNode] = attrs.field(factory=list)
+    predicate_params: list[tuple[str, ExpressionNode]] = attrs.field(factory=list)
     order_by_expr: Optional[OrderByExpression] = None
     group_by_expr: Optional[GroupByExpression] = None
     limit_expr: Optional[LimitExpression] = None

@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import dataclasses
 import enum
 import logging
 import sqlite3
 from typing import Any, Generator, Iterable, Optional, cast
+
+import attrs
 
 from drolta.ast import (
     ASTVisitor,
@@ -94,7 +95,7 @@ def sqlite_dtype_to_py(d_type: str) -> str:
     return "object"
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
+@attrs.define(frozen=True, slots=True)
 class TempResult:
     """Information about an intermediate result of a query."""
 
@@ -109,7 +110,7 @@ class TempResult:
         return sorted(a.output_vars.intersection(b.output_vars))
 
 
-@dataclasses.dataclass(frozen=True, slots=True)
+@attrs.define(frozen=True, slots=True)
 class ColumnInfo:
     """Information about a column in a table."""
 
@@ -180,15 +181,15 @@ class DroltaResult:
         self._cursor.close()
 
 
-@dataclasses.dataclass(slots=True)
+@attrs.define(slots=True)
 class Scope:
     """Information about the current variable scope of the query."""
 
     scope_id: int
     """The ID of the current scope."""
-    output_vars: list[ResultVariable] = dataclasses.field(default_factory=list)
+    output_vars: list[ResultVariable] = attrs.field(factory=list)
     """Variables output by this scope."""
-    tables: list[TempResult] = dataclasses.field(default_factory=list)
+    tables: list[TempResult] = attrs.field(factory=list)
     """Temporary result tables."""
     next_table_id: int = 1
     """The ID assigned to the next table in this scope."""

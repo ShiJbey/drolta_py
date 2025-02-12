@@ -2,8 +2,9 @@
 
 from __future__ import annotations
 
-import dataclasses
 from typing import Optional
+
+import attrs
 
 from drolta.ast import (
     ExpressionNode,
@@ -13,7 +14,7 @@ from drolta.ast import (
 )
 
 
-@dataclasses.dataclass(slots=True)
+@attrs.define(slots=True)
 class ResultVariable:
     """A query rule result variable."""
 
@@ -33,7 +34,7 @@ class ResultVariable:
         return final_str
 
 
-@dataclasses.dataclass(slots=True)
+@attrs.define(slots=True)
 class RuleData:
     """A Drolta query rule."""
 
@@ -45,9 +46,9 @@ class RuleData:
     limit: Optional[LimitExpression]
 
 
-@dataclasses.dataclass(slots=True)
+@attrs.define(slots=True)
 class EngineData:
     """Holds all the data managed by the engine."""
 
-    aliases: dict[str, str] = dataclasses.field(default_factory=dict)
-    rules: dict[str, RuleData] = dataclasses.field(default_factory=dict)
+    aliases: dict[str, str] = attrs.field(factory=dict)
+    rules: dict[str, RuleData] = attrs.field(factory=dict)

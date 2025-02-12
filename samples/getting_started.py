@@ -1,7 +1,9 @@
-"""Drolta Getting Started
+"""Drolta: Getting Started
 
-This sample contains a modified version if the Getting Started sample
-provided in the README.
+This script contains a sample to get users started with using Drolta. It uses
+characters from HBO's House of the Dragon to fill a SQLite database with test
+data that is similar to what someone might find in a simulationist emergent
+narrative game.
 
 """
 
@@ -142,6 +144,9 @@ def main() -> None:
 
     logging.basicConfig(level=logging.INFO)
 
+    # First, create a new SQLite database connection.
+    # The database doesn't need to be in-memory. We use
+    # an in-memory database for simplicity.
     db = sqlite3.Connection(":memory:")
 
     initialize_samples_data(db)
@@ -171,6 +176,10 @@ def main() -> None:
         """
     )
 
+    # Query the database for all paternal half-siblings of the character
+    # named "Addam". This is done by using the rule we specified above
+    # and using the AND operator to ensure that the character has the name
+    # Addam.
     result = engine.execute(
         """
         FIND
@@ -185,9 +194,17 @@ def main() -> None:
 
     print(result.description)
 
+    # Get the actual rows in the result. The order of the columns is the
+    # same as the order of the variables specified after FIND. In this case,
+    # the first column is the character's ID, and the second is their name.
     print("Addam's Half Siblings:")
     for sibling_id, sibling_name in result.fetch_all():
         print(f"ID: {sibling_id}, Name: {sibling_name}")
+
+    # Output:
+    #
+    # ID: 2, Name: Laenor
+    # ID: 10, Name: Laena
 
     db.close()
 

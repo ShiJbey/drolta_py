@@ -1,6 +1,4 @@
-"""Drolta Data Classes.
-
-"""
+"""Drolta Data Classes."""
 
 from __future__ import annotations
 

@@ -1,6 +1,4 @@
-"""Drolta Query Engine.
-
-"""
+"""Drolta Query Engine."""
 
 from __future__ import annotations
 

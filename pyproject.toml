@@ -19,8 +19,8 @@ classifiers = [
     "Topic :: Database :: Database Engines/Servers",
     "Programming Language :: SQL",
 ]
-license = "BSD-3-Clause"
-license-files = { paths = ["LICENSE"] }
+license = "MIT"
+license-files = ["LICENSE"]
 dependencies = ["antlr4-python3-runtime>=4.13.2"]
 
 [project.optional-dependencies]
@@ -49,5 +49,5 @@ testpaths = ["tests"]
 [tool.isort]
 profile = "black"
 default_section = "THIRDPARTY"
-known_first_party = "minerva"
-src_paths = ["src/minerva", "tests", "samples"]
+known_first_party = "drolta"
+src_paths = ["src/drolta", "tests", "samples"]

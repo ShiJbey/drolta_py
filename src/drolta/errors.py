@@ -1,6 +1,4 @@
-"""Custom Exception classes used by Drolta.
-
-"""
+"""Custom Exception classes used by Drolta."""
 
 
 class ProgrammingError(Exception):

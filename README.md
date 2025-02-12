@@ -1,9 +1,10 @@
 # Drolta: A SQLite Query Engine for Python
 
 ![Supported Python Versions badge](https://img.shields.io/badge/python-3.9%20|%203.10%20|%203.11%20|%203.12-blue)
-![3-Clause BSD License badge](https://img.shields.io/badge/License-BSD%203--Clause-green)
+![MIT License badge](https://img.shields.io/badge/License-MIT-green)
 [![Code style: black](https://img.shields.io/badge/code%20style-black-000000.svg)](https://github.com/psf/black)
 [![Imports: isort](https://img.shields.io/badge/%20imports-isort-%231674b1?style=flat&labelColor=ef8336)](https://pycqa.github.io/isort/)
+[![Hatch project](https://img.shields.io/badge/%F0%9F%A5%9A-Hatch-4051b5.svg)](https://github.com/pypa/hatch)
 
 Drolta is an experimental SQLite query engine for wiring more simplified, composable,
 and declarative queries than one could in raw SQL. Drolta was initially developed to
@@ -840,4 +841,4 @@ dist/
 
 ## 🤝 License
 
-This project is licensed under the [3-Clause BSD License](./LICENSE).
+This project is licensed under the [MIT License](./LICENSE).

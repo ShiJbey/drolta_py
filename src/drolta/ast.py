@@ -1,6 +1,4 @@
-"""Drolta abstract syntax tree implementation.
-
-"""
+"""Drolta abstract syntax tree implementation."""
 
 from __future__ import annotations
 
@@ -12,6 +10,7 @@ from sqlite3 import ProgrammingError
 from typing import Any, Optional, cast
 
 import antlr4
+
 from drolta.parsing.DroltaLexer import DroltaLexer
 from drolta.parsing.DroltaListener import DroltaListener
 from drolta.parsing.DroltaParser import DroltaParser
@@ -814,8 +813,8 @@ class _ScriptListener(DroltaListener):
         self.get_scope().group_by_expr = GroupByExpression(terms)
 
     def exitLimit_statement(self, ctx: DroltaParser.Limit_statementContext):
-        limit: int = int(ctx.limitVal().text)  # type: ignore
-        offset: int = int(ctx.offsetVal().text) if ctx.offsetVal() else -1  # type: ignore
+        limit: int = int(ctx.limitVal.text)  # type: ignore
+        offset: int = int(ctx.offsetVal.text) if ctx.offsetVal else -1  # type: ignore
 
         self.get_scope().limit_expr = LimitExpression(value=limit, offset=offset)
 

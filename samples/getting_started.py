@@ -171,25 +171,6 @@ def main() -> None:
         """
     )
 
-    _ = """
-    DEFINE
-        FamilySize(?family_id AS id, COUNT(?character_id) AS count)
-    WHERE
-        Family(id=?family_id)
-        Character(id=?character_id, family_id=?family_id)
-    """
-
-    _ = """
-    FIND
-        ?family_id AS ID, MAX(?count)
-    WHERE
-        FamilySize(id=?family_id, count=?count)
-        ((NOT (?x = NULL)) OR ((?y = TRUE) AND (?z = FALSE)))
-    GROUP BY ?family_id, ?count
-    ORDER BY ?count ASC, ?x DESC NULLS FIRST, ?y ASC NULLS LAST
-    LIMIT 10 OFFSET 35;
-    """
-
     result = engine.execute(
         """
         FIND

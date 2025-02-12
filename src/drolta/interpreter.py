@@ -182,6 +182,21 @@ class DroltaResult:
         self._cursor.close()
 
 
+class FormattedSqlString:
+    """Represents a SQL string."""
+
+    __slots__ = ("raw_sql",)
+
+    raw_sql: str
+
+    def __init__(self, raw_sql: str) -> None:
+        self.raw_sql = raw_sql
+
+    def __str__(self) -> str:
+        print("APPLES!!!")
+        return sqlparse.format(self.raw_sql, reindent=True, keyword_case="upper")  # type: ignore
+
+
 @attrs.define(slots=True)
 class Scope:
     """Information about the current variable scope of the query."""
@@ -352,8 +367,9 @@ class Interpreter(ASTVisitor):
         sql_statement += ";"
 
         _logger.debug(
-            "Calculating Final Output:\n%s"
-            % sqlparse.format(sql_statement, reindent=True, keyword_case="upper")
+            "Calculating Final Output:\n{}".format(  # pylint: disable=W1202, C0209
+                FormattedSqlString(sql_statement)
+            )
         )
 
         cursor = self.db.cursor()
@@ -462,9 +478,8 @@ class Interpreter(ASTVisitor):
         )
 
         _logger.debug(
-            "Filtering Output:\n%s"
-            % sqlparse.format(
-                sql_temp_table_statement, reindent=True, keyword_case="upper"
+            "Filtering Output:\n{}".format(  # pylint: disable=W1202, C0209
+                FormattedSqlString(sql_temp_table_statement)
             )
         )
 
@@ -530,9 +545,8 @@ class Interpreter(ASTVisitor):
             )
 
             _logger.debug(
-                "Joining Not Join:\n%s"
-                % sqlparse.format(
-                    sql_temp_table_statement, reindent=True, keyword_case="upper"
+                "Joining Not Join:\n{}".format(  # pylint: disable=W1202, C0209
+                    FormattedSqlString(sql_temp_table_statement)
                 )
             )
 
@@ -594,9 +608,8 @@ class Interpreter(ASTVisitor):
             )
 
             _logger.debug(
-                "Joining All Tables:\n%s"
-                % sqlparse.format(
-                    sql_temp_table_statement, reindent=True, keyword_case="upper"
+                "Joining All Tables:\n{}".format(  # pylint: disable=W1202, C0209
+                    FormattedSqlString(sql_temp_table_statement)
                 )
             )
 
@@ -661,9 +674,8 @@ class Interpreter(ASTVisitor):
                 )
 
                 _logger.debug(
-                    "Joining Tables:\n%s"
-                    % sqlparse.format(
-                        sql_temp_table_statement, reindent=True, keyword_case="upper"
+                    "Joining Tables:\n{}".format(  # pylint: disable=W1202, C0209
+                        FormattedSqlString(sql_temp_table_statement)
                     )
                 )
 
@@ -723,8 +735,9 @@ class Interpreter(ASTVisitor):
         sql_statement = f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_expr};"
 
         _logger.debug(
-            "Executing predicate select: \n%s"
-            % sqlparse.format(sql_statement, reindent=True, keyword_case="upper")
+            "Executing predicate select: \n{}".format(  # pylint: disable=W1202, C0209
+                FormattedSqlString(sql_statement)
+            )
         )
 
         cursor = self.db.cursor()
@@ -812,9 +825,8 @@ class Interpreter(ASTVisitor):
         )
 
         _logger.debug(
-            "Executing Rule SQL:\n%s"
-            % sqlparse.format(
-                sql_temp_table_statement, reindent=True, keyword_case="upper"
+            "Executing Rule SQL:\n{}".format(  # pylint: disable=W1202, C0209
+                FormattedSqlString(sql_temp_table_statement)
             )
         )
 

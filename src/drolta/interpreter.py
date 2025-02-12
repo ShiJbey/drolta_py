@@ -8,6 +8,7 @@ import sqlite3
 from typing import Any, Generator, Iterable, Optional, cast
 
 import attrs
+import sqlparse
 
 from drolta.ast import (
     ASTVisitor,
@@ -334,25 +335,26 @@ class Interpreter(ASTVisitor):
 
             output_cols.append(str(entry))
 
-        sql_statement = (
-            "SELECT DISTINCT\n"
-            f"\t{', '.join(output_cols)}\n"
-            "FROM\n"
-            f"\t{result_table.table_name}\n"
-        )
+        sql_statement = f"""
+            SELECT DISTINCT {', '.join(output_cols)}
+            FROM {result_table.table_name}
+            """
 
         if node.group_by:
-            sql_statement += f"{node.group_by}\n"
+            sql_statement += f"{node.group_by} "
 
         if node.order_by:
-            sql_statement += f"{node.order_by}\n"
+            sql_statement += f"{node.order_by} "
 
         if node.limit:
-            sql_statement += f"{node.limit}\n"
+            sql_statement += f"{node.limit} "
 
         sql_statement += ";"
 
-        _logger.debug("Calculating Final Output:\n%s", sql_statement)
+        _logger.debug(
+            "Calculating Final Output:\n%s"
+            % sqlparse.format(sql_statement, reindent=True, keyword_case="upper")
+        )
 
         cursor = self.db.cursor()
 
@@ -447,14 +449,7 @@ class Interpreter(ASTVisitor):
 
         result_table = self.get_scope().tables.pop()
 
-        sql_statement = (
-            "SELECT\n"
-            "\t*\n"
-            "FROM\n"
-            f"\t{result_table.table_name}\n"
-            "WHERE\n"
-            f"\n{node}"
-        )
+        sql_statement = f"SELECT * FROM {result_table.table_name} WHERE {node}"
 
         table_name = self.get_temp_table_name()
 
@@ -463,10 +458,15 @@ class Interpreter(ASTVisitor):
         )
 
         sql_temp_table_statement = (
-            f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_statement};"
+            f"CREATE TEMPORARY TABLE {table_name} AS {sql_statement};"
         )
 
-        _logger.debug("Filtering Output:\n%s", sql_temp_table_statement)
+        _logger.debug(
+            "Filtering Output:\n%s"
+            % sqlparse.format(
+                sql_temp_table_statement, reindent=True, keyword_case="upper"
+            )
+        )
 
         cursor = self.db.cursor()
 
@@ -514,27 +514,27 @@ class Interpreter(ASTVisitor):
                 for v in shared_vars
             )
 
-            sql_statement = (
-                "SELECT\n"
-                "\t*\n"
-                "FROM\n"
-                f"\t{last_table.table_name}\n"
-                "WHERE\n"
-                "\tNOT EXISTS (\n"
-                "\t\tSELECT\n"
-                "\t\t\t1\n"
-                "\t\tFROM\n"
-                f"\t\t\t{result_table.table_name}\n"
-                "\t\tWHERE\n"
-                f"\t\t\t{where_filters}"
-                ")"
-            )
+            sql_statement = f"""
+                SELECT *
+                FROM {last_table.table_name}
+                WHERE
+                  NOT EXISTS (
+                    SELECT 1
+                    FROM {result_table.table_name}
+                    WHERE {where_filters}
+                  )
+                """
 
             sql_temp_table_statement = (
-                f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_statement};\n"
+                f"CREATE TEMPORARY TABLE {table_name} AS {sql_statement};"
             )
 
-            _logger.debug("Joining Not Join:\n%s", sql_temp_table_statement)
+            _logger.debug(
+                "Joining Not Join:\n%s"
+                % sqlparse.format(
+                    sql_temp_table_statement, reindent=True, keyword_case="upper"
+                )
+            )
 
             cursor = self.db.cursor()
 
@@ -542,7 +542,7 @@ class Interpreter(ASTVisitor):
 
             cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
 
-            cursor.execute(f"DROP TABLE IF EXISTS {last_table.table_name}")
+            cursor.execute(f"DROP TABLE IF EXISTS {last_table.table_name};")
 
             self.db.commit()
 
@@ -560,9 +560,7 @@ class Interpreter(ASTVisitor):
 
             # Create a large join under a new temp_table.
 
-            sql_join_statement = (
-                "SELECT\n" "*\n" "FROM\n" f"\t{last_table.table_name}\n"
-            )
+            sql_join_statement = f"SELECT * FROM {last_table.table_name} "
 
             output_vars: set[str] = set(last_table.output_vars)
 
@@ -592,10 +590,15 @@ class Interpreter(ASTVisitor):
             table_name = self.get_temp_table_name()
 
             sql_temp_table_statement = (
-                f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_join_statement}"
+                f"CREATE TEMPORARY TABLE {table_name} AS {sql_join_statement};"
             )
 
-            _logger.debug("Joining All Tables:\n%s", sql_temp_table_statement)
+            _logger.debug(
+                "Joining All Tables:\n%s"
+                % sqlparse.format(
+                    sql_temp_table_statement, reindent=True, keyword_case="upper"
+                )
+            )
 
             cursor = self.db.cursor()
 
@@ -637,9 +640,7 @@ class Interpreter(ASTVisitor):
             if have_shared:
                 # Create a large join under a new temp_table.
 
-                sql_join_statement = (
-                    "SELECT\n" "*\n" "FROM\n" f"\t{last_table.table_name}\n"
-                )
+                sql_join_statement = f"SELECT * FROM {last_table.table_name} "
 
                 for idx, var_names in have_shared:
                     temp_table = current_scope.tables[idx]
@@ -650,16 +651,21 @@ class Interpreter(ASTVisitor):
                     )
 
                     sql_join_statement += (
-                        f"JOIN {temp_table.table_name} ON {join_cols}\n"
+                        f"JOIN {temp_table.table_name} ON {join_cols} "
                     )
 
                 table_name = self.get_temp_table_name()
 
                 sql_temp_table_statement = (
-                    f"CREATE TEMPORARY TABLE {table_name} AS\n" f"{sql_join_statement}"
+                    f"CREATE TEMPORARY TABLE {table_name} AS {sql_join_statement};"
                 )
 
-                _logger.debug("Joining Tables:\n%s", sql_temp_table_statement)
+                _logger.debug(
+                    "Joining Tables:\n%s"
+                    % sqlparse.format(
+                        sql_temp_table_statement, reindent=True, keyword_case="upper"
+                    )
+                )
 
                 cursor = self.db.cursor()
 
@@ -704,27 +710,22 @@ class Interpreter(ASTVisitor):
             raise ProgrammingError(f"Predicate '{node}' expects one output variable.")
 
         if where_statements:
-            select_expr = (
-                "SELECT\n"
-                f"\t{',\n\t'.join(column_statements)}\n"
-                "FROM\n"
-                f"\t{table_name}\n"
-                "WHERE\n"
-                f"\t{' AND '.join(where_statements)}"
-            )
+            select_expr = f"""
+                SELECT {', '.join(column_statements)}
+                FROM {table_name}
+                WHERE {' AND '.join(where_statements)}
+                """
         else:
-            select_expr = (
-                "SELECT\n"
-                f"\t{',\n\t'.join(column_statements)}\n"
-                "FROM\n"
-                f"\t{table_name}"
-            )
+            select_expr = f"SELECT {', '.join(column_statements)} FROM {table_name} "
 
         temp_table_name = self.get_temp_table_name()
 
-        sql_statement = f"CREATE TEMPORARY TABLE {temp_table_name} AS\n{select_expr};"
+        sql_statement = f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_expr};"
 
-        _logger.debug("Executing predicate select:\n%s", sql_statement)
+        _logger.debug(
+            "Executing predicate select: \n%s"
+            % sqlparse.format(sql_statement, reindent=True, keyword_case="upper")
+        )
 
         cursor = self.db.cursor()
 
@@ -776,50 +777,46 @@ class Interpreter(ASTVisitor):
 
         if where_statements:
 
-            select_expr = (
-                f"WITH {rule.name} AS (\n"
-                "\tSELECT\n"
-                f"\t\t{',\t\t\n'.join(cte_column_statements)}\n"
-                "\tFROM\n"
-                f"\t\t{result_table.table_name}\n"
-                f"{'\t' + str(rule.group_by) + '\n' if rule.group_by else ''}"
-                f"{'\t' + str(rule.order_by) + '\n' if rule.order_by else ''}"
-                f"{'\t' + str(rule.limit) + '\n' if rule.limit else ''}"
-                f")\n"
-                "SELECT\n"
-                f"\t{',\t\n'.join(column_statements)}\n"
-                "FROM\n"
-                f"\t{rule.name}\n"
-                "WHERE\n"
-                f"\t{' AND '.join(where_statements)}\n"
-            )
+            select_expr = f"""
+                WITH {rule.name} AS (
+                  SELECT {', '.join(cte_column_statements)}
+                  FROM {result_table.table_name}
+                  {' ' + str(rule.group_by) + ' ' if rule.group_by else ''}
+                  {' ' + str(rule.order_by) + ' ' if rule.order_by else ''}
+                  {' ' + str(rule.limit) + ' ' if rule.limit else ''}
+                )
+                SELECT {', '.join(column_statements)}
+                FROM {rule.name}
+                WHERE {' AND '.join(where_statements)}
+                """
 
         else:
-            select_expr = (
-                f"WITH {rule.name} AS (\n"
-                "\tSELECT\n"
-                f"\t\t{',\t\t\n'.join(cte_column_statements)}\n"
-                "\tFROM\n"
-                f"\t\t{result_table.table_name}\n"
-                f"{'\t' + str(rule.group_by) + '\n' if rule.group_by else ''}"
-                f"{'\t' + str(rule.order_by) + '\n' if rule.order_by else ''}"
-                f"{'\t' + str(rule.limit) + '\n' if rule.limit else ''}"
-                f")\n"
-                "SELECT\n"
-                f"\t{',\t\n'.join(column_statements)}\n"
-                "FROM\n"
-                f"\t{rule.name}\n"
-            )
+            select_expr = f"""
+                WITH {rule.name} AS (
+                  SELECT {', '.join(cte_column_statements)}
+                  FROM {result_table.table_name}
+                  {' ' + str(rule.group_by) + ' ' if rule.group_by else ''}
+                  {' ' + str(rule.order_by) + ' ' if rule.order_by else ''}
+                  {' ' + str(rule.limit) + ' ' if rule.limit else ''}
+                )
+                SELECT {', '.join(column_statements)}
+                FROM {rule.name}
+                """
 
         self.pop_scope()
 
         temp_table_name = self.get_temp_table_name()
 
         sql_temp_table_statement = (
-            f"CREATE TEMPORARY TABLE {temp_table_name} AS\n" f"{select_expr}"
+            f"CREATE TEMPORARY TABLE {temp_table_name} AS {select_expr};"
         )
 
-        _logger.debug("Executing Rule SQL:\n%s", sql_temp_table_statement)
+        _logger.debug(
+            "Executing Rule SQL:\n%s"
+            % sqlparse.format(
+                sql_temp_table_statement, reindent=True, keyword_case="upper"
+            )
+        )
 
         cursor = self.db.cursor()
 

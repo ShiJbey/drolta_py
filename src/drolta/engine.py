@@ -2,36 +2,25 @@
 
 from __future__ import annotations
 
-import logging
 import sqlite3
 
 from drolta.ast import generate_ast
 from drolta.data import EngineData
-from drolta.interpreter import DroltaResult, Interpreter, InterpreterMode
-
-_logger = logging.getLogger(__name__)
+from drolta.db import SQLiteDatabase
+from drolta.interpreter import DroltaResult, QueryInterpreter, ScriptInterpreter
 
 
 class QueryEngine:
     """
     A QueryEngine manages user-defined content and handles queries to SQLite.
-
-    Parameters
-    ----------
-    db : sqlite3.Connection
-        A SQlite database Connection.
     """
 
-    __slots__ = ("_db", "_data", "_interpreter")
+    __slots__ = ("_data",)
 
-    _db: sqlite3.Connection
     _data: EngineData
-    _interpreter: Interpreter
 
-    def __init__(self, db: sqlite3.Connection) -> None:
-        self._db = db
+    def __init__(self) -> None:
         self._data = EngineData()
-        self._interpreter = Interpreter(self._db, self._data)
 
     def execute_script(self, drolta_script: str) -> None:
         """Load rules and aliases from a Drolta script.
@@ -42,33 +31,28 @@ class QueryEngine:
             Drolta script text containing rule and alias definitions.
         """
 
-        _logger.debug("Generating drolta AST.")
-
         drolta_ast = generate_ast(drolta_script)
+        interpreter = ScriptInterpreter(self._data)
+        interpreter.visit(drolta_ast)
 
-        _logger.debug("Executing drolta script.")
-
-        self._interpreter.mode = InterpreterMode.SCRIPT_EVAL
-        self._interpreter.visit(drolta_ast)
-
-        return
-
-    def execute(self, drolta_query: str) -> DroltaResult:
+    def query(self, drolta_query: str, conn: sqlite3.Connection) -> DroltaResult:
         """Query the SQLite database and return a cursor to the results.
 
         Parameters
         ----------
         drolta_query : str
             Text defining a Drolta query.
+        conn: sqlite3.Connection
+            A sqlite3 Connection object.
+
+        Returns
+        -------
+        DroltaResult
+            The result of the query.
         """
 
-        _logger.debug("Generating drolta AST.")
-
         drolta_ast = generate_ast(drolta_query)
+        interpreter = QueryInterpreter(SQLiteDatabase(conn), self._data)
+        interpreter.visit(drolta_ast)
 
-        _logger.debug("Executing drolta query.")
-
-        self._interpreter.mode = InterpreterMode.QUERY_EVAL
-        self._interpreter.visit(drolta_ast)
-
-        return self._interpreter.result
+        return interpreter.result

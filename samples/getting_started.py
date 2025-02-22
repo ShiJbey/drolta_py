@@ -151,7 +151,7 @@ def main() -> None:
 
     initialize_samples_data(db)
 
-    engine = drolta.engine.QueryEngine(db)
+    engine = drolta.engine.QueryEngine()
 
     engine.execute_script(
         """
@@ -180,7 +180,7 @@ def main() -> None:
     # named "Addam". This is done by using the rule we specified above
     # and using the AND operator to ensure that the character has the name
     # Addam.
-    result = engine.execute(
+    with engine.query(
         """
         FIND
         ?siblingId, ?siblingName
@@ -189,17 +189,16 @@ def main() -> None:
             PaternalHalfSiblings(x=?adam_id, y=?siblingId)
             Character(id=?siblingId, name=?siblingName)
         ORDER BY ?siblingId;
-        """
-    )
+        """,
+        db,
+    ) as result:
 
-    print(result.description)
-
-    # Get the actual rows in the result. The order of the columns is the
-    # same as the order of the variables specified after FIND. In this case,
-    # the first column is the character's ID, and the second is their name.
-    print("Addam's Half Siblings:")
-    for sibling_id, sibling_name in result.fetch_all():
-        print(f"ID: {sibling_id}, Name: {sibling_name}")
+        # Get the actual rows in the result. The order of the columns is the
+        # same as the order of the variables specified after FIND. In this case,
+        # the first column is the character's ID, and the second is their name.
+        print("Addam's Half Siblings:")
+        for sibling_id, sibling_name in result.fetch_all():
+            print(f"ID: {sibling_id}, Name: {sibling_name}")
 
     # Output:
     #

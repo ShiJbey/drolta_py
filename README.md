@@ -43,6 +43,8 @@ and [TED](https://github.com/ianhorswill/TED). It abstracts away the complexitie
     - [LIMIT](#limit)
     - [Aggregation Functions](#aggregation-functions)
     - [Comments](#comments)
+  - [💢 Troubleshooting](#-troubleshooting)
+    - [OperationalError: database is locked](#operationalerror-database-is-locked)
   - [🧪 Running Unit Tests](#-running-unit-tests)
   - [🎨 Syntax Highlighting Support](#-syntax-highlighting-support)
   - [🏆 Ports and Applications](#-ports-and-applications)
@@ -671,6 +673,17 @@ that spans multiple lines.
 
 */
 ```
+
+## 💢 Troubleshooting
+
+### OperationalError: database is locked
+
+If you receive this error. Then the cursor of a previous query was not properly closed. This often happens when an exception is thrown within an IPython notebook before the contents of a result are read and destroyed. Restarting the kernel/runtime will remove the problem. Then you should reevaluate your code and ensure you do one of the following.
+
+1. Call `fetch_all()` on the result.
+2. Call `fetch_chunks()` and read all the chunks.
+3. Call `fetch_chunks()`, read some chunks, and call `destroy()` on the result to free resources.
+4. Use the result in a context manager with-statement to have resources automatically destroyed. For example, `with engine.query(...) as result`.
 
 ## 🧪 Running Unit Tests
 

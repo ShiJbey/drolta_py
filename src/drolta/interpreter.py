@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import enum
 import logging
 import sqlite3
 from typing import Any, Generator, Iterable, Optional, cast
@@ -23,6 +22,7 @@ from drolta.ast import (
     is_filter_expression,
 )
 from drolta.data import EngineData, ResultVariable, RuleData
+from drolta.db import SQLiteDatabase
 from drolta.errors import ProgrammingError
 
 _logger = logging.getLogger(__name__)
@@ -128,18 +128,26 @@ class DroltaResult:
     tables are removed at the start of a new query.
     """
 
-    __slots__ = ("_column_info", "_has_read_data", "_cursor")
+    __slots__ = ("_column_info", "_has_read_data", "_cursor", "_db", "_result_table")
 
     _column_info: list[ColumnInfo]
     _has_read_data: bool
+    _result_table: TempResult
+    _db: SQLiteDatabase
     _cursor: Optional[sqlite3.Cursor]
 
     def __init__(
-        self, columns: list[ColumnInfo], cursor: Optional[sqlite3.Cursor] = None
+        self,
+        columns: list[ColumnInfo],
+        db: SQLiteDatabase,
+        result_table: TempResult,
+        cursor: Optional[sqlite3.Cursor] = None,
     ) -> None:
         self._column_info = [*columns]
         self._has_read_data = False
         self._cursor = cursor
+        self._db = db
+        self._result_table = result_table
 
     @property
     def description(self) -> Iterable[ColumnInfo]:
@@ -158,7 +166,9 @@ class DroltaResult:
             return []
 
         result = self._cursor.fetchall()
-        self._cursor.close()
+
+        self.destroy()
+
         return result
 
     def fetch_chunks(self, size: int) -> Generator[list[Any], Any, None]:
@@ -179,7 +189,20 @@ class DroltaResult:
             yield next_batch
             next_batch = self._cursor.fetchmany(size)
 
-        self._cursor.close()
+        self.destroy()
+
+    def destroy(self):
+        """Destroy this result, freeing resources."""
+        if self._cursor:
+            self._cursor.close()
+            self._db.execute(f"DROP TABLE IF EXISTS {self._result_table.table_name};")
+            self._cursor = None
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, exc_type: Any, exc_value: Any, traceback: Any):
+        self.destroy()
 
 
 class FormattedSqlString:
@@ -210,55 +233,27 @@ class Scope:
     """The ID assigned to the next table in this scope."""
 
 
-class InterpreterMode(enum.IntEnum):
-    """Various Interpreter Modes."""
-
-    SCRIPT_EVAL = 0
-    """Only allows for declaration operations."""
-    QUERY_EVAL = 1
-    """Only allows for query operations."""
-
-
 SUPPORTED_AGGREGATES = ("COUNT", "MAX", "MIN", "AVG", "SUM")
 """Aggregate functions supported by Drolta."""
 
 
-class Interpreter(ASTVisitor):
+class ScriptInterpreter(ASTVisitor):
     """Interpreter used for scripts."""
 
-    TEMP_TABLE_PREFIX = "temp__"
-    """Name prefix for all temporary tables created by the query engine."""
+    __slots__ = ("engine_data",)
 
-    __slots__ = ("db", "engine_data", "mode", "scope_stack", "result")
-
-    db: sqlite3.Connection
-    """Database connection."""
     engine_data: EngineData
     """State data for the query engine."""
-    mode: InterpreterMode
-    """Current interpreter mode."""
-    scope_stack: list[Scope]
-    """Stack of scopes used during query evaluation."""
-    result: DroltaResult
-    """Cursor with results."""
 
-    def __init__(
-        self,
-        db: sqlite3.Connection,
-        engine_data: EngineData,
-        mode: InterpreterMode = InterpreterMode.SCRIPT_EVAL,
-    ) -> None:
+    def __init__(self, engine_data: EngineData) -> None:
         super().__init__()
-        self.db = db
         self.engine_data = engine_data
-        self.mode = mode
-        self.scope_stack = []
-        self.result = DroltaResult([])
+
+    def visit_program(self, node: ProgramNode):
+        for child in node.children:
+            self.visit(child)
 
     def visit_declare_alias(self, node: DeclareAliasExpression):
-        if self.mode == InterpreterMode.QUERY_EVAL:
-            raise ProgrammingError("Alias declarations not allowed while querying.")
-
         new_alias_dict = {**self.engine_data.aliases, node.alias: node.original_name}
 
         has_cycle, cycled_alias = has_alias_cycle(new_alias_dict)
@@ -271,9 +266,6 @@ class Interpreter(ASTVisitor):
         _logger.debug("Declared alias: %s -> %s", node.alias, node.original_name)
 
     def visit_declare_rule(self, node: DeclareRuleExpression):
-        if self.mode == InterpreterMode.QUERY_EVAL:
-            raise ProgrammingError("Rule declarations not allowed while querying.")
-
         result_vars: list[ResultVariable] = []
         for entry in node.result_vars:
             result_vars.append(
@@ -298,9 +290,46 @@ class Interpreter(ASTVisitor):
         _logger.debug("Declared rule: %s", rule.name)
 
     def visit_query(self, node: QueryExpression):
-        if self.mode == InterpreterMode.SCRIPT_EVAL:
-            raise ProgrammingError("Queries not allowed while loading scripts.")
+        raise ProgrammingError("Queries not allowed while executing scripts.")
 
+
+_next_query_id: int = 0
+"""Gives each query a unique ID to prevent table name clashes."""
+
+
+class QueryInterpreter(ASTVisitor):
+    """Interpreter used for queries."""
+
+    TEMP_TABLE_PREFIX = "temp__"
+    """Name prefix for all temporary tables created by the query engine."""
+
+    __slots__ = ("db", "engine_data", "scope_stack", "result")
+
+    db: SQLiteDatabase
+    """Database connection."""
+    engine_data: EngineData
+    """State data for the query engine."""
+    scope_stack: list[Scope]
+    """Stack of scopes used during query evaluation."""
+    result: DroltaResult
+    """Cursor with results."""
+
+    def __init__(self, db: SQLiteDatabase, engine_data: EngineData) -> None:
+        super().__init__()
+        self.db = db
+        self.engine_data = engine_data
+        self.scope_stack = []
+        self.result = DroltaResult([], db, TempResult("", set()))
+
+    def visit_declare_alias(self, node: DeclareAliasExpression):
+        raise ProgrammingError("Alias declarations not allowed while querying.")
+
+    def visit_declare_rule(self, node: DeclareRuleExpression):
+        raise ProgrammingError("Rule declarations not allowed while querying.")
+
+    def visit_query(self, node: QueryExpression):
+        global _next_query_id  # pylint: disable=W0603
+        _next_query_id += 1
         self.clear_scope_stack()
 
         _logger.debug("Evaluating query.")
@@ -336,7 +365,7 @@ class Interpreter(ASTVisitor):
 
         self._force_join_all_tables()
 
-        result_table = self.get_scope().tables[-1]
+        result_table = self.get_scope().tables.pop()
 
         # For the end of the query, we want to select from the result table
         # all the variables in output vars and assign them to any aliases
@@ -371,11 +400,11 @@ class Interpreter(ASTVisitor):
             )
         )
 
-        cursor = self.db.cursor()
+        cursor = self.db.conn.cursor()
 
         result = cursor.execute(sql_statement)
 
-        column_info_cursor = self.db.cursor()
+        column_info_cursor = self.db.conn.cursor()
 
         raw_column_data: dict[str, str] = {
             k: v
@@ -402,10 +431,12 @@ class Interpreter(ASTVisitor):
                         )
                     )
 
-        self.result = DroltaResult(columns=column_info, cursor=result)
+        self.result = DroltaResult(
+            columns=column_info, db=self.db, result_table=result_table, cursor=result
+        )
 
     def visit_program(self, node: ProgramNode):
-        self.result = DroltaResult([])
+        self.result = DroltaResult([], db=self.db, result_table=TempResult("", set()))
 
         for child in node.children:
             self.visit(child)
@@ -482,16 +513,10 @@ class Interpreter(ASTVisitor):
             )
         )
 
-        cursor = self.db.cursor()
-
-        cursor.execute(sql_temp_table_statement)
+        self.db.execute(sql_temp_table_statement)
 
         # delete the old temp_table
-        cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
-
-        self.db.commit()
-
-        cursor.close()
+        self.db.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
 
         self.get_scope().tables.append(new_result_table)
 
@@ -549,17 +574,11 @@ class Interpreter(ASTVisitor):
                 )
             )
 
-            cursor = self.db.cursor()
+            self.db.execute(sql_temp_table_statement)
 
-            cursor.execute(sql_temp_table_statement)
+            self.db.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
 
-            cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
-
-            cursor.execute(f"DROP TABLE IF EXISTS {last_table.table_name};")
-
-            self.db.commit()
-
-            cursor.close()
+            self.db.execute(f"DROP TABLE IF EXISTS {last_table.table_name};")
 
             self.get_scope().tables.append(not_join_result)
 
@@ -612,19 +631,13 @@ class Interpreter(ASTVisitor):
                 )
             )
 
-            cursor = self.db.cursor()
-
-            cursor.execute(sql_temp_table_statement)
+            self.db.execute(sql_temp_table_statement)
 
             # Remove all tables involved with the join
             for table in current_scope.tables:
-                cursor.execute(f"DROP TABLE IF EXISTS {table.table_name};")
+                self.db.execute(f"DROP TABLE IF EXISTS {table.table_name};")
 
             current_scope.tables.clear()
-
-            self.db.commit()
-
-            cursor.close()
 
             current_scope.tables.append(
                 TempResult(table_name=table_name, output_vars=output_vars)
@@ -678,9 +691,7 @@ class Interpreter(ASTVisitor):
                     )
                 )
 
-                cursor = self.db.cursor()
-
-                cursor.execute(sql_temp_table_statement)
+                self.db.execute(sql_temp_table_statement)
 
                 # Remove all tables involved with the join
                 for idx in range(len(current_scope.tables), -1, -1):
@@ -690,11 +701,7 @@ class Interpreter(ASTVisitor):
                     ):
                         table = current_scope.tables.pop(idx)
 
-                        cursor.execute(f"DROP TABLE IF EXISTS {table.table_name};")
-
-                self.db.commit()
-
-                cursor.close()
+                        self.db.execute(f"DROP TABLE IF EXISTS {table.table_name};")
 
                 current_scope.tables.append(
                     TempResult(table_name=table_name, output_vars=output_vars)
@@ -739,13 +746,7 @@ class Interpreter(ASTVisitor):
             )
         )
 
-        cursor = self.db.cursor()
-
-        cursor.execute(sql_statement)
-
-        self.db.commit()
-
-        cursor.close()
+        self.db.execute(sql_statement)
 
         self.get_scope().tables.append(TempResult(temp_table_name, output_vars))
 
@@ -829,15 +830,9 @@ class Interpreter(ASTVisitor):
             )
         )
 
-        cursor = self.db.cursor()
+        self.db.execute(sql_temp_table_statement)
 
-        cursor.execute(sql_temp_table_statement)
-
-        cursor.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
-
-        self.db.commit()
-
-        cursor.close()
+        self.db.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
 
         self.get_scope().tables.append(TempResult(temp_table_name, output_vars))
 
@@ -857,6 +852,7 @@ class Interpreter(ASTVisitor):
 
         table_name = (
             self.TEMP_TABLE_PREFIX
+            + f"{_next_query_id}_"
             + f"{current_scope.scope_id}_"
             + str(current_scope.next_table_id)
         )
@@ -884,8 +880,9 @@ class Interpreter(ASTVisitor):
 
     def pop_scope(self) -> Scope:
         """Pop the current scope."""
-        self.destroy_temporary_tables()
-        return self.scope_stack.pop()
+        scope = self.scope_stack.pop()
+        self.destroy_temporary_tables(scope)
+        return scope
 
     def clear_scope_stack(self) -> None:
         """Clear all scopes from the stack."""
@@ -893,14 +890,9 @@ class Interpreter(ASTVisitor):
         while self.scope_stack:
             self.pop_scope()
 
-    def destroy_temporary_tables(self) -> None:
-        """Destroy all temporary tables at the current scope."""
-
-        cursor = self.db.cursor()
-        scope = self.get_scope()
+    def destroy_temporary_tables(self, scope: Scope) -> None:
+        """Destroy all temporary tables at the given scope."""
 
         while scope.tables:
             table = scope.tables.pop()
-            cursor.execute(f"DROP TABLE IF EXISTS {table.table_name};")
-
-        self.db.commit()
+            self.db.execute(f"DROP TABLE IF EXISTS {table.table_name};")

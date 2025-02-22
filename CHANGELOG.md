@@ -1,6 +1,17 @@
 # Changelog
 
-## [0.2.2] - Unreleased
+## [0.3.0] - 2025-02-22
+
+*BREAKING CHANGES:* This release has breaking changes from 0.2.x.
+
+### Added
+
+- `DroltaResults` support Python's `with`-statement to ensure resources are freed
+
+### Changed
+
+- (breaking) Renamed `execute` to `query` to make its use more clear.
+- (breaking) `QueryEngine` doesn't maintain a reference to a db Connection. The connection is passed to `query()`
 
 ### Fixed
 

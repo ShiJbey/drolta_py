@@ -2,7 +2,7 @@ grammar Drolta;
 
 // Parser Rules
 
-prog: prog_statement (S_COL prog_statement)* S_COL? EOF;
+prog: (prog_statement (S_COL prog_statement)*)? S_COL? EOF;
 
 prog_statement: alias_declaration | rule_declaration | query;
 

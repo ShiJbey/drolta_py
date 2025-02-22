@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.2.2] - Unreleased
+
+### Fixed
+
+- Fixed syntax error raised when calling `execute_query` and `execute` with empty strings
+
 ## [0.2.1] - 2025-02-12
 
 ### Fixed

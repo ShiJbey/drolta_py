@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.1] - 2025-03-11
+
+### Fixed
+
+- Fix SQL templating bug causing `sqlite3.ProgrammingError: You can only execute one statement at a time.`
+
+### Added
+
+- Add `QueryEngine` to `__all__` in  `__init__.py`.
+
 ## [0.3.0] - 2025-02-22
 
 *BREAKING CHANGES:* This release has breaking changes from 0.2.x.
@@ -61,4 +71,6 @@ _initial release._
 
 [0.1.0]: https://github.com/ShiJbey/drolta_py/releases/v0.1.0
 [0.2.0]: https://github.com/ShiJbey/drolta_py/releases/v0.2.0
-[0.2.1]: https://github.com/ShiJbey/drolta_py/releases/v0.2.0
+[0.2.1]: https://github.com/ShiJbey/drolta_py/releases/v0.2.1
+[0.3.0]: https://github.com/ShiJbey/drolta_py/releases/v0.3.0
+[0.3.1]: https://github.com/ShiJbey/drolta_py/releases/v0.3.1

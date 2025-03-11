@@ -8,4 +8,8 @@ easy-to-use database querying experience.
 
 """
 
-__version__ = "0.3.0"
+__version__ = "0.3.1"
+
+from .engine import QueryEngine
+
+__all__ = ["QueryEngine"]

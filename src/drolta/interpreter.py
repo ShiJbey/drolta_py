@@ -596,8 +596,7 @@ class QueryInterpreter(ASTVisitor):
 
             output_vars: set[str] = set(last_table.output_vars)
 
-            num_other_tables = len(current_scope.tables) - 1
-            for table_idx, other_table in enumerate(current_scope.tables[:-1]):
+            for other_table in current_scope.tables[:-1]:
                 shared_vars = TempResult.get_common_vars(last_table, other_table)
 
                 output_vars = output_vars.union(other_table.output_vars)
@@ -613,9 +612,6 @@ class QueryInterpreter(ASTVisitor):
                     )
                 else:
                     sql_join_statement += f"CROSS JOIN {other_table.table_name}"
-
-                if table_idx == num_other_tables - 1:
-                    sql_join_statement += ";"
 
                 sql_join_statement += "\n"
 

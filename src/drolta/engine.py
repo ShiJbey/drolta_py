@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import sqlite3
+from typing import Any, Optional
 
 from drolta.ast import generate_ast
 from drolta.data import EngineData
@@ -35,7 +36,12 @@ class QueryEngine:
         interpreter = ScriptInterpreter(self._data)
         interpreter.visit(drolta_ast)
 
-    def query(self, drolta_query: str, conn: sqlite3.Connection) -> DroltaResult:
+    def query(
+        self,
+        drolta_query: str,
+        conn: sqlite3.Connection,
+        bindings: Optional[dict[str, Any]] = None,
+    ) -> DroltaResult:
         """Query the SQLite database and return a cursor to the results.
 
         Parameters
@@ -44,6 +50,8 @@ class QueryEngine:
             Text defining a Drolta query.
         conn: sqlite3.Connection
             A sqlite3 Connection object.
+        bindings: dict[str, Any]
+            Bindings of query variables to values.
 
         Returns
         -------
@@ -52,7 +60,11 @@ class QueryEngine:
         """
 
         drolta_ast = generate_ast(drolta_query)
-        interpreter = QueryInterpreter(SQLiteDatabase(conn), self._data)
+        interpreter = QueryInterpreter(
+            db=SQLiteDatabase(conn),
+            engine_data=self._data,
+            bindings=bindings if bindings else {},
+        )
         interpreter.visit(drolta_ast)
 
         return interpreter.result

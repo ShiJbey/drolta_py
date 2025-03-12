@@ -303,7 +303,7 @@ class QueryInterpreter(ASTVisitor):
     TEMP_TABLE_PREFIX = "temp__"
     """Name prefix for all temporary tables created by the query engine."""
 
-    __slots__ = ("db", "engine_data", "scope_stack", "result")
+    __slots__ = ("db", "engine_data", "scope_stack", "result", "bindings")
 
     db: SQLiteDatabase
     """Database connection."""
@@ -313,13 +313,18 @@ class QueryInterpreter(ASTVisitor):
     """Stack of scopes used during query evaluation."""
     result: DroltaResult
     """Cursor with results."""
+    bindings: dict[str, Any]
+    """Variable bindings supplied by the user."""
 
-    def __init__(self, db: SQLiteDatabase, engine_data: EngineData) -> None:
+    def __init__(
+        self, db: SQLiteDatabase, engine_data: EngineData, bindings: dict[str, Any]
+    ) -> None:
         super().__init__()
         self.db = db
         self.engine_data = engine_data
         self.scope_stack = []
         self.result = DroltaResult([], db, TempResult("", set()))
+        self.bindings = bindings
 
     def visit_declare_alias(self, node: DeclareAliasExpression):
         raise ProgrammingError("Alias declarations not allowed while querying.")
@@ -382,6 +387,18 @@ class QueryInterpreter(ASTVisitor):
             SELECT DISTINCT {', '.join(output_cols)}
             FROM {result_table.table_name}
             """
+
+        if self.bindings:
+            where_statements: list[str] = []
+            for var_name, value in self.bindings.items():
+                if value is None:
+                    where_statements.append(f"{var_name[1:]} IS NULL")
+                elif isinstance(value, str):
+                    where_statements.append(f'{var_name[1:]} = "{value}"')
+                else:
+                    where_statements.append(f"{var_name[1:]} = {value}")
+
+            sql_statement += f"WHERE {' AND '.join(where_statements)}\n"
 
         if node.group_by:
             sql_statement += f"{node.group_by} "

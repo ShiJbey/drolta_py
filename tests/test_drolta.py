@@ -1345,3 +1345,51 @@ def test_sum_aggregate() -> None:
     ).fetch_all()
 
     assert rows[0][0] == 215
+
+
+def test_query_bindings() -> None:
+    """Test passing bindings to queries."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine()
+
+    rows = engine.query(
+        """
+        FIND
+            ?x, ?y
+        WHERE
+            characters(id=?x)
+            characters(id=?y)
+            (?x != ?y);
+        """,
+        db,
+        {"?x": 1},
+    ).fetch_all()
+
+    assert len(rows) == 16
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine()
+
+    rows = engine.query(
+        """
+        FIND
+            ?x, ?y
+        WHERE
+            characters(id=?x, name=?name)
+            characters(id=?y)
+            (?x != ?y);
+        """,
+        db,
+        {"?name": "Rhaenyra", "?y": 2},
+    ).fetch_all()
+
+    assert len(rows) == 1
+
+    db.close()

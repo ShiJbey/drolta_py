@@ -155,3 +155,34 @@ def test_no_double_semi_col_on_cross_join() -> None:
     ).fetch_all()
 
     assert True
+
+
+def test_no_column_string_literal_conflicts() -> None:
+    """Test that column names in SELECT do not conflict with string literals."""
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine()
+
+    engine.execute_script(
+        """
+    DEFINE
+        Mother(?Child, ?Mother)
+    WHERE
+        relations(from_id=?Child, to_id=?Mother, type="Mother");
+    """
+    )
+
+    with engine.query(
+        """
+        FIND
+            ?x, ?y
+        WHERE
+            Mother(Child=?x, Mother=?y);
+        """,
+        db,
+    ) as result:
+        entries = result.fetch_all()
+
+    assert len(entries) == 7

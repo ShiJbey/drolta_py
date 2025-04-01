@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.1] - 2025-04-01
+
+## Fixed
+
+- Fixed bug where variable/output parameter names could conflict with string literals.
+
 ## [0.4.0] - 2025-03-11
 
 ## Added
@@ -73,7 +79,7 @@
 
 ## [0.1.0] - 2025-02-03
 
-_initial release._
+_initial release.*
 
 [0.1.0]: https://github.com/ShiJbey/drolta_py/releases/v0.1.0
 [0.2.0]: https://github.com/ShiJbey/drolta_py/releases/v0.2.0
@@ -81,3 +87,4 @@ _initial release._
 [0.3.0]: https://github.com/ShiJbey/drolta_py/releases/v0.3.0
 [0.3.1]: https://github.com/ShiJbey/drolta_py/releases/v0.3.1
 [0.4.0]: https://github.com/ShiJbey/drolta_py/releases/v0.4.0
+[0.4.1]: https://github.com/ShiJbey/drolta_py/releases/v0.4.1

@@ -190,14 +190,14 @@ This package can be installed from PyPI.
 pip install drolta
 ```
 
-You can test the installation by printing the current drolta version in the Python REPL.
+You can test the installation by printing the current drolta version in the Python REPL. Depending on when you install drolta, the version should be greater than or equal to the one printed below.
 
 ```bash
 $ python3
 
 >>> import drolta
 >>> drolta.__version__
-0.2.0
+0.4.1
 ```
 
 ### Getting Started
@@ -244,7 +244,7 @@ output size (see [GROUP BY](#group-by), [ORDER BY](#order-by), and [LIMIT](#limi
 
 The `FIND`-clause always goes first and signals the start of the query. The find-clause
 contains all variables output by the query and their aliases if provided. The output
-variable aliases differ from [rule/predicate aliases](#aliases). They are used to give
+variable aliases differ from [rule/predicate aliases](#tablerule-aliases). They are used to give
 alternate column names to the query output. Otherwise, the column names will match the
 variable names without the leading '?'.
 
@@ -284,7 +284,7 @@ similar to a logic programming language.
 
 Predicates are treated as base facts about the world. Each predicate corresponds
 one-to-one with a table in your database. If you would like to change the predicate
-name, use an [alias](#aliases). Each column of a table corresponds to one of the
+name, use an [alias](#tablerule-aliases). Each column of a table corresponds to one of the
 parameters that can be bound by the predicate. Users cannot create new predicates except
 by creating new database tables. Alternatively, users can define new [rules](#rules) to
 take advantage of existing predicates.
@@ -390,7 +390,6 @@ WHERE
     HouseSize(id=?house_id, size=?house_size)
     (?house_size < 4)
 ```
-
 
 ### Filter Statements
 

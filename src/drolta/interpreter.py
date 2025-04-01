@@ -729,7 +729,7 @@ class QueryInterpreter(ASTVisitor):
 
         for column_name, expr in node.params:
             if expr.get_expression_type() == ExpressionType.VARIABLE:
-                column_statements.append(f'{column_name} AS "{expr}"')
+                column_statements.append(f"{column_name} AS [{expr}]")
                 output_vars.add(str(expr))
             else:
                 if expr.get_expression_type() == ExpressionType.NULL:
@@ -785,7 +785,7 @@ class QueryInterpreter(ASTVisitor):
         for column_name, expr in node.params:
             # Add input parameters mapped to variables to the set of output vars
             if expr.get_expression_type() == ExpressionType.VARIABLE:
-                column_statements.append(f'{column_name} AS "{expr}"')
+                column_statements.append(f"{column_name} AS [{expr}]")
                 output_vars.add(str(expr))
 
             # If it is not a variable, then this is a column mapped to a constant

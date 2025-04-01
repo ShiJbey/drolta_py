@@ -1,3 +1,4 @@
+# pylint: disable=C0302
 """Drolta abstract syntax tree implementation."""
 
 from __future__ import annotations
@@ -452,7 +453,7 @@ class StringExpression(ExpressionNode):
         return ExpressionType.STRING
 
     def __str__(self) -> str:
-        return f"{self.value}"
+        return f"'{self.value}'"
 
 
 class BoolExpression(ExpressionNode):
@@ -935,7 +936,7 @@ class _ScriptListener(DroltaListener):
 
         if ctx.STRING_LITERAL():
             self.get_scope().expr_queue.append(
-                StringExpression(str(ctx.STRING_LITERAL().getText()))  # type: ignore
+                StringExpression(str(ctx.STRING_LITERAL().getText())[1:-1])  # type: ignore
             )
             return
 

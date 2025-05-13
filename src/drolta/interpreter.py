@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import re
 import logging
 import sqlite3
 from typing import Any, Generator, Iterable, Optional, cast
@@ -419,7 +420,15 @@ class QueryInterpreter(ASTVisitor):
 
         cursor = self.db.conn.cursor()
 
-        result = cursor.execute(sql_statement)
+        try:
+            result = cursor.execute(sql_statement)
+        except sqlite3.OperationalError as ex:
+            if match := re.match(r"^no such column: ([a-zA-z0-9]+)$", str(ex)):
+                raise ProgrammingError(
+                    f"Parameter ?{match.group(1)} does not appear in WHERE section of the query."
+                ) from ex
+            else:
+                raise ex
 
         column_info_cursor = self.db.conn.cursor()
 
@@ -759,7 +768,15 @@ class QueryInterpreter(ASTVisitor):
             )
         )
 
-        self.db.execute(sql_statement)
+        try:
+            self.db.execute(sql_statement)
+        except sqlite3.OperationalError as ex:
+            if match := re.match(r"^no such column: ([a-zA-z0-9]+)$", str(ex)):
+                raise ProgrammingError(
+                    f"{match.group(1)} is not a valid parameter of predicate {table_name}."
+                ) from ex
+            else:
+                raise ex
 
         self.get_scope().tables.append(TempResult(temp_table_name, output_vars))
 
@@ -843,7 +860,15 @@ class QueryInterpreter(ASTVisitor):
             )
         )
 
-        self.db.execute(sql_temp_table_statement)
+        try:
+            self.db.execute(sql_temp_table_statement)
+        except sqlite3.OperationalError as ex:
+            if match := re.match(r"^no such column: ([a-zA-z0-9]+)$", str(ex)):
+                raise ProgrammingError(
+                    f"{match.group(1)} is not a valid parameter of rule {rule.name}."
+                ) from ex
+            else:
+                raise ex
 
         self.db.execute(f"DROP TABLE IF EXISTS {result_table.table_name};")
 

@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.4.2] - 2025-05-13
+
+## Added
+
+- Add drolta-specific error messages for unused parameter variables and invalid parameter names
+
 ## [0.4.1] - 2025-04-01
 
 ## Fixed
@@ -86,5 +92,6 @@ _initial release.*
 [0.2.1]: https://github.com/ShiJbey/drolta_py/releases/v0.2.1
 [0.3.0]: https://github.com/ShiJbey/drolta_py/releases/v0.3.0
 [0.3.1]: https://github.com/ShiJbey/drolta_py/releases/v0.3.1
-[0.4.0]: https://github.com/ShiJbey/drolta_py/releases/v0.4.0
-[0.4.1]: https://github.com/ShiJbey/drolta_py/releases/v0.4.1
+[0.4.0]: https://pypi.org/project/drolta/0.4.0/
+[0.4.1]: https://pypi.org/project/drolta/0.4.1/
+[0.4.2]: https://github.com/ShiJbey/drolta_py/releases/v0.4.2

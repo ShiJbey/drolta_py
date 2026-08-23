@@ -1,0 +1,55 @@
+DEFINE
+    Mother(?x, ?y)
+WHERE
+    Relationship(?x, ?y, type="Mother");
+
+DEFINE
+    Father(?x, ?y)
+WHERE
+    Relationship(?x, ?y, type="BiologicalFather");
+    
+DEFINE
+    Mother(?x, ?y)
+WHERE
+    Relationship(?x, ?y, type="Mother");
+
+DEFINE
+    Father(?x, ?y)
+WHERE
+    Relationship(?x, ?y, type="BiologicalFather");
+
+DEFINE
+    Parent(?x, ?y)
+WHERE
+    Mother(?x, ?y);
+
+DEFINE
+    Parent(?x, ?y)
+WHERE
+    Father(?x, ?y);
+
+DEFINE
+    Ancestor(?x, ?y)
+WHERE
+    Parent(?x, ?Y);
+
+DEFINE
+    Ancestor(?x, ?y)
+WHERE
+    Parent(?x, ?z)
+    Ancestor(?z, ?y);
+
+DEFINE
+    PaternalHalfSiblings(?x, ?y)
+WHERE
+    Father(?x, ?father)
+    Father(?y, ?father)
+    Mother(?x, ?x_mother)
+    Mother(?y, ?y_mother)
+    ((?x_mother != ?y_mother) AND (?x != ?y));
+
+DEFINE
+    FamilySize(?family_id AS id, COUNT(?character_id) AS count)
+WHERE
+    Family(id=?family_id)
+    Character(id=?character_id, family_id=?family_id)

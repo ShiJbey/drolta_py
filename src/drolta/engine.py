@@ -6,9 +6,8 @@ import sqlite3
 from typing import Any, Optional
 
 from drolta.ast import generate_ast
-from drolta.data import EngineData
 from drolta.db import SQLiteDatabase
-from drolta.interpreter import DroltaResult, QueryInterpreter, ScriptInterpreter
+from drolta.interpreter import EngineData, DroltaResult, QueryInterpreter, ScriptInterpreter
 
 
 class QueryEngine:

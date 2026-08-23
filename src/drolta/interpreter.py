@@ -7,8 +7,8 @@ import re
 import logging
 import sqlite3
 from typing import Any, Generator, Iterable, Optional, cast
+from dataclasses import dataclass, field
 
-import attrs
 import sqlparse
 
 from drolta.ast import (
@@ -32,7 +32,6 @@ from drolta.ast import (
     LimitClauseNode,
     NodeType,
     PredicateNegationExprNode,
-    NullLiteralNode,
     OrderByClauseNode,
     PredicateExprNode,
     ProgramNode,
@@ -40,9 +39,9 @@ from drolta.ast import (
     SortDirection,
     StringLiteralNode,
     VariableNode,
+    WhereClauseNode,
     WhereStmtNode,
 )
-from drolta.data import EngineData, ResultVariable, RuleData
 from drolta.db import SQLiteDatabase
 from drolta.errors import ProgrammingError
 
@@ -230,7 +229,7 @@ def sqlite_dtype_to_py(d_type: str) -> str:
     return "object"
 
 
-@attrs.define(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True)
 class TempResult:
     """Information about an intermediate result of a query."""
 
@@ -245,7 +244,7 @@ class TempResult:
         return sorted(a.output_vars.intersection(b.output_vars))
 
 
-@attrs.define(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True)
 class ColumnInfo:
     """Information about a column in a table."""
 
@@ -434,15 +433,55 @@ class ASTVisitor(ABC):
 #                         f"Value list in '{expression_op}'-expression cannot contain NULL."
 #                     )
 
-@attrs.define(slots=True)
+@dataclass(slots=True)
+class ResultVariable:
+    """A query rule result variable."""
+
+    var_name: str
+    aggregate_name: str = ""
+    alias: str = ""
+
+    def __str__(self):
+        final_str = self.var_name
+
+        if self.aggregate_name:
+            final_str = f"{self.aggregate_name}({final_str})"
+
+        if self.alias:
+            final_str = f'{final_str} AS "{self.alias}"'
+
+        return final_str
+
+
+@dataclass(slots=True)
+class RuleData:
+    """A Drolta query rule."""
+
+    name: str
+    result_vars: list[ResultVariable]
+    where_expressions: WhereClauseNode
+    order_by: Optional[OrderByClauseNode]
+    group_by: Optional[GroupByClauseNode]
+    limit: Optional[LimitClauseNode]
+
+
+@dataclass(slots=True)
+class EngineData:
+    """Holds all the data managed by the engine."""
+
+    aliases: dict[str, str] = field(default_factory=dict[str, str])
+    rules: dict[str, RuleData] = field(default_factory=dict[str, RuleData])
+
+
+@dataclass(slots=True)
 class Scope:
     """Information about the current variable scope of the query."""
 
     scope_id: int
     """The ID of the current scope."""
-    output_vars: list[ResultVariable] = attrs.field(factory=list)
+    output_vars: list[ResultVariable] = field(default_factory=list[ResultVariable])
     """Variables output by this scope."""
-    tables: list[TempResult] = attrs.field(factory=list)
+    tables: list[TempResult] = field(default_factory=list[TempResult])
     """Temporary result tables."""
     next_table_id: int = 1
     """The ID assigned to the next table in this scope."""
@@ -768,7 +807,7 @@ class QueryInterpreter(ASTVisitor):
         expression_type = node.expr.get_type()
 
         if expression_type == NodeType.PREDICATE_EXPR:
-            self.dispatch_visit_predicate(cast(PredicateExprNode, node.expr))
+            self.dispatch_visit_predicate(node.expr)
 
         else:
             raise ProgrammingError("Not statement expects a predicate or rule.")

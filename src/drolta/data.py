@@ -7,10 +7,11 @@ from typing import Optional
 import attrs
 
 from drolta.ast import (
-    ExpressionNode,
-    GroupByExpression,
-    LimitExpression,
-    OrderByExpression,
+    ASTNode,
+    GroupByClauseNode,
+    LimitClauseNode,
+    OrderByClauseNode,
+    WhereClauseNode,
 )
 
 
@@ -40,10 +41,10 @@ class RuleData:
 
     name: str
     result_vars: list[ResultVariable]
-    where_expressions: list[ExpressionNode]
-    order_by: Optional[OrderByExpression]
-    group_by: Optional[GroupByExpression]
-    limit: Optional[LimitExpression]
+    where_expressions: WhereClauseNode
+    order_by: Optional[OrderByClauseNode]
+    group_by: Optional[GroupByClauseNode]
+    limit: Optional[LimitClauseNode]
 
 
 @attrs.define(slots=True)

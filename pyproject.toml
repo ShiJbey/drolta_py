@@ -5,16 +5,15 @@ authors = [{ name = "Shi Johnson-Bey", email = "shijbey@gmail.com" }]
 description = "A SQLite query engine for simplified, composable, and declarative queries."
 keywords = ["sqlite", "database", "query engine", "querying", "drolta"]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 classifiers = [
     "Operating System :: OS Independent",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Database",
     "Topic :: Database :: Database Engines/Servers",
     "Programming Language :: SQL",

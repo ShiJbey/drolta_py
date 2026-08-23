@@ -1,5 +1,11 @@
 # Changelog
 
+## [0.5.0] - Unreleased
+
+### Changed
+
+- Bump minimum supported Python version to 3.11
+
 ## [0.4.2] - 2025-05-13
 
 ## Added
@@ -95,3 +101,4 @@ _initial release.*
 [0.4.0]: https://pypi.org/project/drolta/0.4.0/
 [0.4.1]: https://pypi.org/project/drolta/0.4.1/
 [0.4.2]: https://github.com/ShiJbey/drolta_py/releases/v0.4.2
+[0.5.0]: https://github.com/ShiJbey/drolta_py/releases/v0.5.0

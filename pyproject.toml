@@ -5,23 +5,26 @@ authors = [{ name = "Shi Johnson-Bey", email = "shijbey@gmail.com" }]
 description = "A SQLite query engine for simplified, composable, and declarative queries."
 keywords = ["sqlite", "database", "query engine", "querying", "drolta"]
 readme = "README.md"
-requires-python = ">=3.9"
+requires-python = ">=3.11"
 classifiers = [
     "Operating System :: OS Independent",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Topic :: Database",
     "Topic :: Database :: Database Engines/Servers",
     "Programming Language :: SQL",
 ]
 license = "MIT"
 license-files = ["LICENSE"]
-dependencies = ["antlr4-python3-runtime>=4.13.2", "attrs>=25.1.0", "sqlparse>=0.5.3"]
+dependencies = [
+    "antlr4-python3-runtime>=4.13.2",
+    "attrs>=25.1.0",
+    "sqlparse>=0.5.3",
+]
 
 [project.optional-dependencies]
 development = ["isort", "black", "hatchling", "build", "pytest", "antlr4-tools"]

@@ -2,9 +2,16 @@
 
 ## [0.5.0] - Unreleased
 
+### Added
+
+- Added support for positional parameters
+
 ### Changed
 
 - Bump minimum supported Python version to 3.11
+- ANTLR4 grammar files divided between parser and lexer
+- Replaced parse tree listener with visitor implementation
+- Refactored AST node names to match updated grammar
 
 ## [0.4.2] - 2025-05-13
 

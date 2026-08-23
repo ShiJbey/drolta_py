@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+from abc import ABC, abstractmethod
 import re
 import logging
 import sqlite3
@@ -11,16 +12,35 @@ import attrs
 import sqlparse
 
 from drolta.ast import (
-    ASTVisitor,
-    DeclareAliasExpression,
-    DeclareRuleExpression,
-    ExpressionNode,
-    ExpressionType,
-    NotPredicateExpression,
-    PredicateExpression,
+    ANDFilterExprNode,
+    AtomNode,
+    AliasDeclarationNode,
+    ComparisonFilterExprNode,
+    ComparisonOp,
+    FilterExprNode,
+    MembershipFilterExprNode,
+    NOTFilterExprNode,
+    NullsSortDirection,
+    ORFilterExprNode,
+    OrderingTermNode,
+    ResultVariableNode,
+    RuleDeclarationNode,
+    ASTNode,
+    FloatLiteralNode,
+    GroupByClauseNode,
+    IntLiteralNode,
+    LimitClauseNode,
+    NodeType,
+    PredicateNegationExprNode,
+    NullLiteralNode,
+    OrderByClauseNode,
+    PredicateExprNode,
     ProgramNode,
-    QueryExpression,
-    is_filter_expression,
+    QueryExprNode,
+    SortDirection,
+    StringLiteralNode,
+    VariableNode,
+    WhereStmtNode,
 )
 from drolta.data import EngineData, ResultVariable, RuleData
 from drolta.db import SQLiteDatabase
@@ -29,17 +49,130 @@ from drolta.errors import ProgrammingError
 _logger = logging.getLogger(__name__)
 
 
-def get_execution_order(node: ExpressionNode) -> int:
-    """Get the order number of the expression (Lower is higher priority)."""
-    expression_type = node.get_expression_type()
+def atom_node_to_str(atom_node: AtomNode) -> str:
+    """Convert the given atom node to a string to use within SQL."""
 
-    if expression_type == ExpressionType.PREDICATE_CALL:
+    if atom_node.get_type() == NodeType.INT_LITERAL:
+        return str(cast(IntLiteralNode, atom_node).value)
+    if atom_node.get_type() == NodeType.FLOAT_LITERAL:
+            return str(cast(FloatLiteralNode, atom_node).value)
+    if atom_node.get_type() == NodeType.STRING_LITERAL:
+            return f"'{cast(StringLiteralNode, atom_node).value}'"
+    if atom_node.get_type() == NodeType.BOOL_LITERAL:
+            return str(cast(IntLiteralNode, atom_node).value)
+    if atom_node.get_type() == NodeType.NULL_LITERAL:
+            return "NULL"
+    if atom_node.get_type() == NodeType.VARIABLE:
+            return str(cast(VariableNode, atom_node).value)
+
+    raise TypeError("Unsupported atom node type: " + atom_node.get_type().name)
+
+
+def limit_clause_to_str(node: LimitClauseNode) -> str:
+    offset_expr = f" OFFSET {node.offset}" if node.offset > 0 else ""
+    return f"LIMIT {node.value}{offset_expr}"
+
+
+def group_by_to_str(node: GroupByClauseNode) -> str:
+    term_list_str = ", ".join(term.value for term in node.grouping_terms.items)
+    return f"GROUP BY {term_list_str}"
+
+
+def order_by_to_str(node: OrderByClauseNode) -> str:
+    term_list_str = ", ".join(ordering_term_to_str(term) for term in node.terms.items)
+    return f"ORDER BY {term_list_str}"
+
+
+def result_var_to_str(node: ResultVariableNode):
+    final_str = node.var_name
+
+    if node.aggregate_name:
+        final_str = f"{node.aggregate_name}({final_str})"
+
+    if node.alias:
+        final_str = f'{final_str} AS "{node.alias}"'
+
+    return final_str
+
+
+def ordering_term_to_str(node: OrderingTermNode) -> str:
+    asc_desc = ""
+    if node.sort_dir != SortDirection.NONE:
+        asc_desc = " ASC" if node.sort_dir == SortDirection.ASC else " DESC"
+
+    nulls_order = ""
+    if node.nulls_sort_dir != NullsSortDirection.NONE:
+        nulls_order = (
+            " NULLS FIRST"
+            if node.nulls_sort_dir == NullsSortDirection.FIRST
+            else " NULLS LAST"
+        )
+
+    return f"{node.variable.value}{asc_desc}{nulls_order}"
+
+
+def membership_filter_expr_to_str(node: MembershipFilterExprNode) -> str:
+    value_list = ", ".join(atom_node_to_str(v) for v in node.values.items)
+    expression_op = "NOT IN" if node.is_negated else "IN"
+    return f"({node.left.value} {expression_op} ({value_list}))"
+
+
+def comparison_filter_to_str(node: ComparisonFilterExprNode) -> str:
+    if node.op == ComparisonOp.GT:
+        return f"({node.left} > {node.right})"
+    elif node.op == ComparisonOp.LT:
+        return f"({node.left} < {node.right})"
+    elif node.op == ComparisonOp.GTE:
+        return f"({node.left} >= {node.right})"
+    elif node.op == ComparisonOp.LTE:
+        return f"({node.left} <= {node.right})"
+    elif node.op == ComparisonOp.EQ:
+        if node.right.get_type() == NodeType.NULL_LITERAL:
+            return f"({node.left} IS {node.right})"
+        else:
+            return f"({node.left} = {node.right})"
+    else:
+        if node.right.get_type() == NodeType.NULL_LITERAL:
+            return f"({node.left} IS NOT {node.right})"
+        else:
+            return f"({node.left} != {node.right})"
+
+def and_filter_to_str(node: ANDFilterExprNode) -> str:
+    return f"({node.left} AND {node.right})"
+
+def or_filter_to_str(node: ORFilterExprNode) -> str:
+    return f"({node.left} OR {node.right})"
+
+def not_filter_to_str(node: NOTFilterExprNode):
+    return f"(NOT {node.expr})"
+
+
+def is_filter_expression(node: ASTNode) -> bool:
+    """Check if the given node is a valid filter expression."""
+    return isinstance(node, FilterExprNode)
+
+
+def is_where_expression(node: ASTNode) -> bool:
+    """Check if a given node is a valid where expression."""
+    return isinstance(node, WhereStmtNode)
+
+
+def is_value_expression(node: ASTNode) -> bool:
+    """Check if a given node is a valid value expression."""
+    return isinstance(node, AtomNode)
+
+
+def get_execution_order(node: ASTNode) -> int:
+    """Get the order number of the expression (Lower is higher priority)."""
+    expression_type = node.get_type()
+
+    if expression_type == NodeType.PREDICATE_EXPR:
         return 0
 
     if is_filter_expression(node):
         return 1
 
-    if expression_type == ExpressionType.PREDICATE_NOT:
+    if expression_type == NodeType.PREDICATE_NEGATION_EXPR:
         return 1
 
     return 2
@@ -220,6 +353,87 @@ class FormattedSqlString:
         return sqlparse.format(self.raw_sql, reindent=True, keyword_case="upper")  # type: ignore
 
 
+class ASTVisitor(ABC):
+    """Abstract base class implemented by visitors that traverse ASTs."""
+
+    @abstractmethod
+    def visit_program(self, node: ProgramNode) -> None:
+        """Visit Program Node."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def visit_declare_alias(self, node: AliasDeclarationNode) -> None:
+        """Visit DeclareAliasNode."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def visit_declare_rule(self, node: RuleDeclarationNode) -> None:
+        """Visit DeclareRuleNode."""
+        raise NotImplementedError()
+
+    @abstractmethod
+    def visit_query(self, node: QueryExprNode) -> None:
+        """Visit QueryExpression."""
+        raise NotImplementedError()
+
+    def visit(self, node: ASTNode) -> None:
+        """Dynamic dispatch by node type."""
+        expression_type = node.get_type()
+
+        if expression_type == NodeType.PROGRAM:
+            return self.visit_program(cast(ProgramNode, node))
+
+        if expression_type == NodeType.ALIAS_DECLARATION:
+            return self.visit_declare_alias(cast(AliasDeclarationNode, node))
+
+        if expression_type == NodeType.RULE_DECLARATION:
+            return self.visit_declare_rule(cast(RuleDeclarationNode, node))
+
+        if expression_type == NodeType.QUERY:
+            return self.visit_query(cast(QueryExprNode, node))
+
+        raise TypeError(f"Unsupported node expression type: {expression_type.name}")
+
+
+# class ASTValidator(ASTVisitor):
+#     """Validates that the AST conforms to language rules."""
+
+#     def visit_declare_rule(self, node: RuleDeclarationNode) -> None:
+#         if len(node.where_expressions) == 0:
+#             raise ProgrammingError(
+#                 "WHERE section of rule declaration is missing statements."
+#             )
+
+#         if len(node.result_vars) == 0:
+#             raise ProgrammingError("Rule declaration is missing result variables.")
+
+#     def visit_query(self, node: QueryExprNode) -> None:
+#         if len(node.where_expressions) == 0:
+#             raise ProgrammingError("WHERE section of query is missing statements.")
+
+#         if len(node.result_vars) == 0:
+#             raise ProgrammingError("Query is missing result variables.")
+
+#     def validate_membership_filter(node: MembershipFilterExprNode) -> None:
+#             """Validate this expression's fields."""
+#             expression_op = "NOT IN" if self.is_inverted else "IN"
+
+#             if self.expr.get_type() != NodeType.VARIABLE:
+#                 raise ProgrammingError(
+#                     f"Expected variable for left side of '{expression_op}'"
+#                 )
+
+#             for entry in self.values:
+#                 expr_type = entry.get_type()
+#                 if expr_type == NodeType.VARIABLE:
+#                     raise ProgrammingError(
+#                         f"Value list in '{expression_op}'-expression cannot contain variables."
+#                     )
+#                 if expr_type == NodeType.NULL_LITERAL:
+#                     raise ProgrammingError(
+#                         f"Value list in '{expression_op}'-expression cannot contain NULL."
+#                     )
+
 @attrs.define(slots=True)
 class Scope:
     """Information about the current variable scope of the query."""
@@ -254,7 +468,7 @@ class ScriptInterpreter(ASTVisitor):
         for child in node.children:
             self.visit(child)
 
-    def visit_declare_alias(self, node: DeclareAliasExpression):
+    def visit_declare_alias(self, node: AliasDeclarationNode):
         new_alias_dict = {**self.engine_data.aliases, node.alias: node.original_name}
 
         has_cycle, cycled_alias = has_alias_cycle(new_alias_dict)
@@ -266,9 +480,9 @@ class ScriptInterpreter(ASTVisitor):
 
         _logger.debug("Declared alias: %s -> %s", node.alias, node.original_name)
 
-    def visit_declare_rule(self, node: DeclareRuleExpression):
+    def visit_declare_rule(self, node: RuleDeclarationNode):
         result_vars: list[ResultVariable] = []
-        for entry in node.result_vars:
+        for entry in node.define_clause.result_vars.items:
             result_vars.append(
                 ResultVariable(
                     var_name=entry.var_name,
@@ -278,9 +492,9 @@ class ScriptInterpreter(ASTVisitor):
             )
 
         rule = RuleData(
-            name=node.name,
+            name=node.define_clause.name,
             result_vars=result_vars,
-            where_expressions=[*node.where_expressions],
+            where_expressions=node.where_clause,
             group_by=node.group_by,
             order_by=node.order_by,
             limit=node.limit,
@@ -290,7 +504,7 @@ class ScriptInterpreter(ASTVisitor):
 
         _logger.debug("Declared rule: %s", rule.name)
 
-    def visit_query(self, node: QueryExpression):
+    def visit_query(self, node: QueryExprNode):
         raise ProgrammingError("Queries not allowed while executing scripts.")
 
 
@@ -327,13 +541,13 @@ class QueryInterpreter(ASTVisitor):
         self.result = DroltaResult([], db, TempResult("", set()))
         self.bindings = bindings
 
-    def visit_declare_alias(self, node: DeclareAliasExpression):
+    def visit_declare_alias(self, node: AliasDeclarationNode):
         raise ProgrammingError("Alias declarations not allowed while querying.")
 
-    def visit_declare_rule(self, node: DeclareRuleExpression):
+    def visit_declare_rule(self, node: RuleDeclarationNode):
         raise ProgrammingError("Rule declarations not allowed while querying.")
 
-    def visit_query(self, node: QueryExpression):
+    def visit_query(self, node: QueryExprNode):
         global _next_query_id  # pylint: disable=W0603
         _next_query_id += 1
         self.clear_scope_stack()
@@ -342,7 +556,7 @@ class QueryInterpreter(ASTVisitor):
 
         scope = self.new_scope()
 
-        for entry in node.result_vars:
+        for entry in node.find_clause.result_vars.items:
             scope.output_vars.append(
                 ResultVariable(
                     var_name=entry.var_name,
@@ -353,19 +567,19 @@ class QueryInterpreter(ASTVisitor):
 
         # Sort expressions to push filters and not-predicate expressions
         # to the end of the query.
-        where_expressions = sorted(node.where_expressions, key=get_execution_order)
+        where_expressions = sorted(node.where_clause.statements, key=get_execution_order)
 
         for expr in where_expressions:
-            expression_type = expr.get_expression_type()
+            expression_type = expr.get_type()
 
-            if expression_type == ExpressionType.PREDICATE_CALL:
-                self.dispatch_visit_predicate(cast(PredicateExpression, expr))
+            if expression_type == NodeType.PREDICATE_EXPR:
+                self.dispatch_visit_predicate(cast(PredicateExprNode, expr))
 
             elif is_filter_expression(expr):
                 self.visit_filter(expr)
 
-            elif expression_type == ExpressionType.PREDICATE_NOT:
-                self.visit_not_predicate(cast(NotPredicateExpression, expr))
+            elif expression_type == NodeType.PREDICATE_NEGATION_EXPR:
+                self.visit_not_predicate(cast(PredicateNegationExprNode, expr))
 
             self._attempt_join_latest_table()
 
@@ -467,7 +681,7 @@ class QueryInterpreter(ASTVisitor):
         for child in node.children:
             self.visit(child)
 
-    def visit_rule(self, name: str, node: PredicateExpression):
+    def visit_rule(self, name: str, node: PredicateExprNode):
         """Evaluates a predicate expression as a rule."""
 
         self.new_scope()
@@ -476,20 +690,20 @@ class QueryInterpreter(ASTVisitor):
 
         # Sort expressions to push filters and not-predicate expressions
         # to the end of the query.
-        where_expressions = sorted(rule.where_expressions, key=get_execution_order)
+        where_expressions = sorted(rule.where_expressions.statements, key=get_execution_order)
 
         for expr in where_expressions:
-            expression_type = expr.get_expression_type()
+            expression_type = expr.get_type()
 
-            if expression_type == ExpressionType.PREDICATE_CALL:
-                self.dispatch_visit_predicate(cast(PredicateExpression, expr))
+            if expression_type == NodeType.PREDICATE_EXPR:
+                self.dispatch_visit_predicate(cast(PredicateExprNode, expr))
 
             elif is_filter_expression(expr):
                 self.visit_filter(expr)
 
-            elif expression_type == ExpressionType.PREDICATE_NOT:
+            elif expression_type == NodeType.PREDICATE_NEGATION_EXPR:
                 self._force_join_all_tables()
-                self.visit_not_predicate(cast(NotPredicateExpression, expr))
+                self.visit_not_predicate(cast(PredicateNegationExprNode, expr))
 
             self._attempt_join_latest_table()
 
@@ -497,7 +711,7 @@ class QueryInterpreter(ASTVisitor):
 
         self.execute_rule_sql(node, rule)
 
-    def dispatch_visit_predicate(self, node: PredicateExpression):
+    def dispatch_visit_predicate(self, node: PredicateExprNode):
         """Manages visiting predicates as true predicates or rules."""
 
         predicate_name = self.get_final_predicate_name(node.name)
@@ -507,12 +721,12 @@ class QueryInterpreter(ASTVisitor):
         else:
             self.visit_predicate(predicate_name, node)
 
-    def visit_predicate(self, predicate_table_name: str, node: PredicateExpression):
+    def visit_predicate(self, predicate_table_name: str, node: PredicateExprNode):
         """Evaluate predicate expression against a table in the database."""
 
         self.execute_predicate_sql(predicate_table_name, node)
 
-    def visit_filter(self, node: ExpressionNode):
+    def visit_filter(self, node: ASTNode):
         """Evaluate predicate expression."""
 
         # This function forces all the previous tables to join and performs a filter
@@ -546,15 +760,15 @@ class QueryInterpreter(ASTVisitor):
 
         self.get_scope().tables.append(new_result_table)
 
-    def visit_not_predicate(self, node: NotPredicateExpression):
+    def visit_not_predicate(self, node: PredicateNegationExprNode):
         """Evaluate predicate expression."""
 
         self.new_scope()
 
-        expression_type = node.expr.get_expression_type()
+        expression_type = node.expr.get_type()
 
-        if expression_type == ExpressionType.PREDICATE_CALL:
-            self.dispatch_visit_predicate(cast(PredicateExpression, node.expr))
+        if expression_type == NodeType.PREDICATE_EXPR:
+            self.dispatch_visit_predicate(cast(PredicateExprNode, node.expr))
 
         else:
             raise ProgrammingError("Not statement expects a predicate or rule.")
@@ -729,19 +943,20 @@ class QueryInterpreter(ASTVisitor):
                     TempResult(table_name=table_name, output_vars=output_vars)
                 )
 
-    def execute_predicate_sql(self, table_name: str, node: PredicateExpression) -> None:
+    def execute_predicate_sql(self, table_name: str, node: PredicateExprNode) -> None:
         """Execute SQL query for a predicate expression."""
 
         output_vars: set[str] = set()
         column_statements: list[str] = []
         where_statements: list[str] = []
 
-        for column_name, expr in node.params:
-            if expr.get_expression_type() == ExpressionType.VARIABLE:
+        for entry in node.named_params.params:
+            column_name, expr = entry.column_name, entry.value
+            if expr.get_type() == NodeType.VARIABLE:
                 column_statements.append(f"{column_name} AS [{expr}]")
                 output_vars.add(str(expr))
             else:
-                if expr.get_expression_type() == ExpressionType.NULL:
+                if expr.get_type() == NodeType.NULL_LITERAL:
                     where_statements.append(f"{column_name} IS {expr}")
                 else:
                     where_statements.append(f"{column_name} = {expr}")
@@ -780,7 +995,7 @@ class QueryInterpreter(ASTVisitor):
 
         self.get_scope().tables.append(TempResult(temp_table_name, output_vars))
 
-    def execute_rule_sql(self, node: PredicateExpression, rule: RuleData) -> None:
+    def execute_rule_sql(self, node: PredicateExprNode, rule: RuleData) -> None:
         """Get the final SQL expression for a rule expression."""
 
         # The variables output by this rules
@@ -799,16 +1014,17 @@ class QueryInterpreter(ASTVisitor):
 
             cte_column_statements.append(str(entry))
 
-        for column_name, expr in node.params:
+        for entry in node.named_params.params:
+            column_name, expr = entry.column_name, entry.value
             # Add input parameters mapped to variables to the set of output vars
-            if expr.get_expression_type() == ExpressionType.VARIABLE:
+            if expr.get_type() == NodeType.VARIABLE:
                 column_statements.append(f"{column_name} AS [{expr}]")
                 output_vars.add(str(expr))
 
             # If it is not a variable, then this is a column mapped to a constant
             # and must be added to the WHERE section of the final SQL query
             else:
-                if expr.get_expression_type() == ExpressionType.NULL:
+                if expr.get_type() == NodeType.NULL_LITERAL:
                     where_statements.append(f"{column_name} IS {expr}")
                 else:
                     where_statements.append(f"{column_name} = {expr}")

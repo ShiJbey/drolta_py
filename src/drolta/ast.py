@@ -447,17 +447,17 @@ class AliasDeclarationNode(ProgramStmtNode):
 class ResultVariableNode(ASTNode):
     """A variable returned by a rule or query."""
 
-    __slots__ = ("aggregate_name", "var_name", "alias")
+    __slots__ = ("aggregate_name", "variable", "alias")
 
     aggregate_name: str
-    var_name: str
+    variable: VariableNode
     alias: str
 
     def __init__(
-        self, var_name: str, aggregate_name: str = "", alias: str = ""
+        self, variable: VariableNode, aggregate_name: str = "", alias: str = ""
     ) -> None:
         super().__init__(NodeType.RESULT_VARIABLE)
-        self.var_name = var_name
+        self.variable = variable
         self.aggregate_name = aggregate_name
         self.alias = alias
 
@@ -626,6 +626,8 @@ class _SyntaxErrorListener(antlr4.DiagnosticErrorListener):
 class ASTBuilderVisitor(DroltaParserVisitor):
     """A parse tree visitor that builds a Drolta abstract syntax tree."""
 
+    def visitProg(self, ctx: DroltaParser.ProgContext): # type: ignore
+        return ProgramNode([self.visit(s) for s in ctx.drolta_stmt_list().drolta_stmt()]) # type: ignore
 
     def visitDeclare_alias_stmt(self, ctx: DroltaParser.Declare_alias_stmtContext | Any): # type: ignore
         return AliasDeclarationNode(
@@ -652,7 +654,7 @@ class ASTBuilderVisitor(DroltaParserVisitor):
 
     def visitQuery_stmt(self, ctx: DroltaParser.Query_stmtContext): # type: ignore
         node = QueryExprNode(
-            find_clause=cast(FindClauseNode, self.visit(ctx.define_clause())), # type: ignore
+            find_clause=cast(FindClauseNode, self.visit(ctx.find_clause())), # type: ignore
             where_clause=cast(WhereClauseNode, self.visit(ctx.where_clause())), # type: ignore
         )
 
@@ -678,8 +680,8 @@ class ASTBuilderVisitor(DroltaParserVisitor):
         )
         return FindClauseNode(varList)
 
-    def visitResult_var_list(self, ctx: DroltaParser.Result_var_listContext):
-        return ResultVarListNode([self.visit(n) for n in ctx.result_var()]) # type: ignore
+    def visitResult_var_list(self, ctx: DroltaParser.Result_var_listContext): # type: ignore
+        return ResultVariableListNode([self.visit(n) for n in ctx.result_var()]) # type: ignore
 
     def visitResult_var(self, ctx: DroltaParser.Result_varContext): # type: ignore
         node = ResultVariableNode(self.visit(ctx.variable())) # type: ignore
@@ -739,7 +741,7 @@ class ASTBuilderVisitor(DroltaParserVisitor):
 
     def visitPredicate_stmt(self, ctx: DroltaParser.Predicate_stmtContext | Any): # type: ignore
         return PredicateExprNode(
-            name=str(ctx.IDENTIFIER().text), # type: ignore
+            name=str(ctx.IDENTIFIER().getText()), # type: ignore
             positional_params=(
                 cast(PositionalParamListNode, self.visit(ctx.positional_param_list())) # type: ignore
                 if ctx.positional_param_list() is not None
@@ -764,7 +766,7 @@ class ASTBuilderVisitor(DroltaParserVisitor):
 
     def visitNamed_param(self, ctx: DroltaParser.Named_paramContext | Any): # type: ignore
         return NamedParamNode(
-            column_name=str(ctx.IDENTIFIER().text), # type: ignore, # type: ignore
+            column_name=str(ctx.IDENTIFIER().getText()), # type: ignore, # type: ignore
             value=cast(AtomNode, self.visit(ctx.atom())) # type: ignore
         )
 
@@ -859,6 +861,6 @@ def generate_ast(script_text: str) -> ASTNode:
         raise SyntaxError(error_message)
 
     visitor = ASTBuilderVisitor()
-    ast_root = cast(ASTNode, visitor.visit(tree))
+    ast_root = visitor.visitProg(tree)
 
     return ast_root

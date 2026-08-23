@@ -12,8 +12,7 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
 
     cursor = db.cursor()
 
-    cursor.executescript(
-        """
+    cursor.executescript("""
         DROP TABLE IF EXISTS characters;
         DROP TABLE IF EXISTS houses;
         DROP TABLE IF EXISTS relations;
@@ -42,8 +41,7 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
             FOREIGN KEY (from_id) REFERENCES characters(id),
             FOREIGN KEY (to_id) REFERENCES characters(id)
         ) STRICT;
-        """
-    )
+        """)
 
     cursor.executemany(
         """
@@ -144,21 +142,18 @@ def test_unused_output_variable() -> None:
 
     initialize_test_data(db)
 
-    engine = QueryEngine()
+    engine = QueryEngine(db)
 
     with pytest.raises(
         ProgrammingError,
         match=r"Parameter \?house_id does not appear in WHERE section of the query.",
     ):
-        engine.query(
-            """
+        engine.query("""
             FIND
                 ?character_id, ?house_id
             WHERE
                 characters(id=?character_id);
-            """,
-            db,
-        ).fetch_all()
+            """).fetch_all()
 
 
 def test_invalid_predicate_parameter() -> None:
@@ -168,7 +163,7 @@ def test_invalid_predicate_parameter() -> None:
 
     initialize_test_data(db)
 
-    engine = QueryEngine()
+    engine = QueryEngine(db)
 
     with pytest.raises(
         ProgrammingError,
@@ -181,7 +176,6 @@ def test_invalid_predicate_parameter() -> None:
             WHERE
                 characters(character_id=?character_id);
             """,
-            db,
         ).fetch_all()
 
 
@@ -192,16 +186,14 @@ def test_invalid_rule_parameter() -> None:
 
     initialize_test_data(db)
 
-    engine = QueryEngine()
+    engine = QueryEngine(db)
 
-    engine.execute_script(
-        """
+    engine.execute_script("""
         DEFINE
             Character(?id, ?name)
         WHERE
             characters(id=?id, name=?name);
-        """
-    )
+        """)
 
     with pytest.raises(
         ProgrammingError,
@@ -214,5 +206,4 @@ def test_invalid_rule_parameter() -> None:
             WHERE
                 Character(character_id=?character_id, name=?character_name);
             """,
-            db,
         ).fetch_all()

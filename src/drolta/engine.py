@@ -5,9 +5,8 @@ from __future__ import annotations
 import sqlite3
 from typing import Any, Optional
 
-from drolta.ast import generate_ast
 from drolta.db import SQLiteDatabase
-from drolta.interpreter import EngineData, DroltaResult, QueryInterpreter, ScriptInterpreter
+from drolta.interpreter import DroltaResult, DroltaInterpreter
 
 
 class QueryEngine:
@@ -15,12 +14,12 @@ class QueryEngine:
     A QueryEngine manages user-defined content and handles queries to SQLite.
     """
 
-    __slots__ = ("_data",)
+    __slots__ = ("_interpreter",)
 
-    _data: EngineData
+    _interpreter: DroltaInterpreter
 
-    def __init__(self) -> None:
-        self._data = EngineData()
+    def __init__(self, conn: sqlite3.Connection) -> None:
+        self._interpreter = DroltaInterpreter(SQLiteDatabase(conn))
 
     def execute_script(self, drolta_script: str) -> None:
         """Load rules and aliases from a Drolta script.
@@ -31,14 +30,11 @@ class QueryEngine:
             Drolta script text containing rule and alias definitions.
         """
 
-        drolta_ast = generate_ast(drolta_script)
-        interpreter = ScriptInterpreter(self._data)
-        interpreter.visit(drolta_ast)
+        self._interpreter.execute_script(drolta_script)
 
     def query(
         self,
         drolta_query: str,
-        conn: sqlite3.Connection,
         bindings: Optional[dict[str, Any]] = None,
     ) -> DroltaResult:
         """Query the SQLite database and return a cursor to the results.
@@ -58,12 +54,4 @@ class QueryEngine:
             The result of the query.
         """
 
-        drolta_ast = generate_ast(drolta_query)
-        interpreter = QueryInterpreter(
-            db=SQLiteDatabase(conn),
-            engine_data=self._data,
-            bindings=bindings if bindings else {},
-        )
-        interpreter.visit(drolta_ast)
-
-        return interpreter.result
+        return self._interpreter.query(drolta_query, bindings)

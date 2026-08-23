@@ -41,6 +41,7 @@ from drolta.ast import (
     VariableNode,
     WhereClauseNode,
     WhereStmtNode,
+    generate_ast,
 )
 from drolta.db import SQLiteDatabase
 from drolta.errors import ProgrammingError
@@ -54,15 +55,15 @@ def atom_node_to_str(atom_node: AtomNode) -> str:
     if atom_node.get_type() == NodeType.INT_LITERAL:
         return str(cast(IntLiteralNode, atom_node).value)
     if atom_node.get_type() == NodeType.FLOAT_LITERAL:
-            return str(cast(FloatLiteralNode, atom_node).value)
+        return str(cast(FloatLiteralNode, atom_node).value)
     if atom_node.get_type() == NodeType.STRING_LITERAL:
-            return f"'{cast(StringLiteralNode, atom_node).value}'"
+        return f"'{cast(StringLiteralNode, atom_node).value}'"
     if atom_node.get_type() == NodeType.BOOL_LITERAL:
-            return str(cast(IntLiteralNode, atom_node).value)
+        return str(cast(IntLiteralNode, atom_node).value)
     if atom_node.get_type() == NodeType.NULL_LITERAL:
-            return "NULL"
+        return "NULL"
     if atom_node.get_type() == NodeType.VARIABLE:
-            return str(cast(VariableNode, atom_node).value)
+        return str(cast(VariableNode, atom_node).value)
 
     raise TypeError("Unsupported atom node type: " + atom_node.get_type().name)
 
@@ -83,7 +84,7 @@ def order_by_to_str(node: OrderByClauseNode) -> str:
 
 
 def result_var_to_str(node: ResultVariableNode):
-    final_str = node.var_name
+    final_str = node.variable.value
 
     if node.aggregate_name:
         final_str = f"{node.aggregate_name}({final_str})"
@@ -136,11 +137,14 @@ def comparison_filter_to_str(node: ComparisonFilterExprNode) -> str:
         else:
             return f"({node.left} != {node.right})"
 
+
 def and_filter_to_str(node: ANDFilterExprNode) -> str:
     return f"({node.left} AND {node.right})"
 
+
 def or_filter_to_str(node: ORFilterExprNode) -> str:
     return f"({node.left} OR {node.right})"
+
 
 def not_filter_to_str(node: NOTFilterExprNode):
     return f"(NOT {node.expr})"
@@ -433,6 +437,7 @@ class ASTVisitor(ABC):
 #                         f"Value list in '{expression_op}'-expression cannot contain NULL."
 #                     )
 
+
 @dataclass(slots=True)
 class ResultVariable:
     """A query rule result variable."""
@@ -490,22 +495,72 @@ class Scope:
 SUPPORTED_AGGREGATES = ("COUNT", "MAX", "MIN", "AVG", "SUM")
 """Aggregate functions supported by Drolta."""
 
+_next_query_id: int = 0
+"""Gives each query a unique ID to prevent table name clashes."""
 
-class ScriptInterpreter(ASTVisitor):
-    """Interpreter used for scripts."""
 
-    __slots__ = ("engine_data",)
+class DroltaInterpreter(ASTVisitor):
+    """Interpreter used for queries."""
 
+    TEMP_TABLE_PREFIX = "temp__"
+    """Name prefix for all temporary tables created by the query engine."""
+
+    __slots__ = ("db", "engine_data", "scope_stack", "result", "bindings")
+
+    db: SQLiteDatabase
+    """Database connection."""
     engine_data: EngineData
     """State data for the query engine."""
+    scope_stack: list[Scope]
+    """Stack of scopes used during query evaluation."""
+    result: DroltaResult
+    """Cursor with results."""
+    bindings: dict[str, Any]
+    """Variable bindings supplied by the user."""
 
-    def __init__(self, engine_data: EngineData) -> None:
+    def __init__(self, db: SQLiteDatabase) -> None:
         super().__init__()
-        self.engine_data = engine_data
+        self.db = db
+        self.engine_data = EngineData()
+        self.scope_stack = []
+        self.result = DroltaResult([], db, TempResult("", set()))
+        self.bindings = {}
 
-    def visit_program(self, node: ProgramNode):
-        for child in node.children:
-            self.visit(child)
+    def execute_script(self, drolta_script: str) -> None:
+        """Load rules and aliases from a Drolta script.
+
+        Parameters
+        ----------
+        drolta_script : str
+            Drolta script text containing rule and alias definitions.
+        """
+
+        drolta_ast = generate_ast(drolta_script)
+        self.visit(drolta_ast)
+
+    def query(
+        self,
+        drolta_query: str,
+        bindings: Optional[dict[str, Any]] = None,
+    ) -> DroltaResult:
+        """Query the SQLite database and return a cursor to the results.
+
+        Parameters
+        ----------
+        drolta_query : str
+            Text defining a Drolta query.
+        bindings: dict[str, Any]
+            Bindings of query variables to values.
+
+        Returns
+        -------
+        DroltaResult
+            The result of the query.
+        """
+        self.bindings = bindings if bindings is not None else {}
+        drolta_ast = generate_ast(drolta_query)
+        self.visit(drolta_ast)
+        return self.result
 
     def visit_declare_alias(self, node: AliasDeclarationNode):
         new_alias_dict = {**self.engine_data.aliases, node.alias: node.original_name}
@@ -524,7 +579,7 @@ class ScriptInterpreter(ASTVisitor):
         for entry in node.define_clause.result_vars.items:
             result_vars.append(
                 ResultVariable(
-                    var_name=entry.var_name,
+                    var_name=entry.variable.value,
                     aggregate_name=entry.aggregate_name,
                     alias=entry.alias,
                 )
@@ -544,49 +599,6 @@ class ScriptInterpreter(ASTVisitor):
         _logger.debug("Declared rule: %s", rule.name)
 
     def visit_query(self, node: QueryExprNode):
-        raise ProgrammingError("Queries not allowed while executing scripts.")
-
-
-_next_query_id: int = 0
-"""Gives each query a unique ID to prevent table name clashes."""
-
-
-class QueryInterpreter(ASTVisitor):
-    """Interpreter used for queries."""
-
-    TEMP_TABLE_PREFIX = "temp__"
-    """Name prefix for all temporary tables created by the query engine."""
-
-    __slots__ = ("db", "engine_data", "scope_stack", "result", "bindings")
-
-    db: SQLiteDatabase
-    """Database connection."""
-    engine_data: EngineData
-    """State data for the query engine."""
-    scope_stack: list[Scope]
-    """Stack of scopes used during query evaluation."""
-    result: DroltaResult
-    """Cursor with results."""
-    bindings: dict[str, Any]
-    """Variable bindings supplied by the user."""
-
-    def __init__(
-        self, db: SQLiteDatabase, engine_data: EngineData, bindings: dict[str, Any]
-    ) -> None:
-        super().__init__()
-        self.db = db
-        self.engine_data = engine_data
-        self.scope_stack = []
-        self.result = DroltaResult([], db, TempResult("", set()))
-        self.bindings = bindings
-
-    def visit_declare_alias(self, node: AliasDeclarationNode):
-        raise ProgrammingError("Alias declarations not allowed while querying.")
-
-    def visit_declare_rule(self, node: RuleDeclarationNode):
-        raise ProgrammingError("Rule declarations not allowed while querying.")
-
-    def visit_query(self, node: QueryExprNode):
         global _next_query_id  # pylint: disable=W0603
         _next_query_id += 1
         self.clear_scope_stack()
@@ -598,7 +610,7 @@ class QueryInterpreter(ASTVisitor):
         for entry in node.find_clause.result_vars.items:
             scope.output_vars.append(
                 ResultVariable(
-                    var_name=entry.var_name,
+                    var_name=entry.variable.value,
                     aggregate_name=entry.aggregate_name,
                     alias=entry.alias,
                 )
@@ -606,7 +618,9 @@ class QueryInterpreter(ASTVisitor):
 
         # Sort expressions to push filters and not-predicate expressions
         # to the end of the query.
-        where_expressions = sorted(node.where_clause.statements, key=get_execution_order)
+        where_expressions = sorted(
+            node.where_clause.statements, key=get_execution_order
+        )
 
         for expr in where_expressions:
             expression_type = expr.get_type()
@@ -729,7 +743,9 @@ class QueryInterpreter(ASTVisitor):
 
         # Sort expressions to push filters and not-predicate expressions
         # to the end of the query.
-        where_expressions = sorted(rule.where_expressions.statements, key=get_execution_order)
+        where_expressions = sorted(
+            rule.where_expressions.statements, key=get_execution_order
+        )
 
         for expr in where_expressions:
             expression_type = expr.get_type()

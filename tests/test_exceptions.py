@@ -3,8 +3,9 @@
 import sqlite3
 
 import pytest
+
 from drolta import QueryEngine
-from drolta.errors import ProgrammingError
+from drolta.errors import DroltaError
 
 
 def initialize_test_data(db: sqlite3.Connection) -> None:
@@ -145,7 +146,7 @@ def test_unused_output_variable() -> None:
     engine = QueryEngine(db)
 
     with pytest.raises(
-        ProgrammingError,
+        DroltaError,
         match=r"Parameter \?house_id does not appear in WHERE section of the query.",
     ):
         engine.query("""
@@ -166,7 +167,7 @@ def test_invalid_predicate_parameter() -> None:
     engine = QueryEngine(db)
 
     with pytest.raises(
-        ProgrammingError,
+        DroltaError,
         match=r"character_id is not a valid parameter of predicate characters.",
     ):
         engine.query(
@@ -196,7 +197,7 @@ def test_invalid_rule_parameter() -> None:
         """)
 
     with pytest.raises(
-        ProgrammingError,
+        DroltaError,
         match=r"character_id is not a valid parameter of rule Character.",
     ):
         engine.query(

@@ -37,6 +37,10 @@ class SQLiteDatabase:
         finally:
             cur.close()
 
+    def drop_table(self, table_name: str) -> None:
+        """Drop the given table if it exists."""
+        self.execute(f"DROP TABLE IF EXISTS {table_name};")
+
     def execute(self, sql: str, params: Optional[tuple[Any, ...]] = None) -> None:
         """Execute an operation on the database.
 

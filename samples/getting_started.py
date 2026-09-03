@@ -8,6 +8,7 @@ narrative game.
 """
 
 import logging
+import pathlib
 import sqlite3
 
 import drolta.engine
@@ -18,45 +19,43 @@ def initialize_samples_data(db: sqlite3.Connection) -> None:
 
     cursor = db.cursor()
 
-    cursor.executescript(
-        """
-        DROP TABLE IF EXISTS characters;
-        DROP TABLE IF EXISTS houses;
-        DROP TABLE IF EXISTS relations;
+    cursor.executescript("""
+        DROP TABLE IF EXISTS Character;
+        DROP TABLE IF EXISTS House;
+        DROP TABLE IF EXISTS Relationship;
 
-        CREATE TABLE characters (
+        CREATE TABLE Character (
             id INTEGER PRIMARY KEY NOT NULL,
             name TEXT,
             house_id INTEGER,
             sex TEXT,
             life_stage TEXT,
             is_alive INTEGER,
-            FOREIGN KEY (house_id) REFERENCES houses(id)
+            FOREIGN KEY (house_id) REFERENCES House(id)
         ) STRICT;
 
-        CREATE TABLE houses (
+        CREATE TABLE House (
             id INTEGER NOT NULL PRIMARY KEY,
             name TEXT NOT NULL,
             reputation INT NOT NULL,
             is_noble INT NOT NULL
         ) STRICT;
 
-        CREATE TABLE relations (
+        CREATE TABLE Relationship (
             from_id INTEGER NOT NULL,
             to_id INTEGER NOT NULL,
             type TEXT NOT NULL,
-            FOREIGN KEY (from_id) REFERENCES characters(id),
-            FOREIGN KEY (to_id) REFERENCES characters(id)
+            FOREIGN KEY (from_id) REFERENCES Character(id),
+            FOREIGN KEY (to_id) REFERENCES Character(id)
         ) STRICT;
-        """
-    )
+        """)
 
     cursor.executemany(
         """
         INSERT INTO
-        characters (id, name, house_id, sex, life_stage, is_alive)
+            Character (id, name, house_id, sex, life_stage, is_alive)
         VALUES
-        (?, ?, ?, ?, ?, ?);
+            (?, ?, ?, ?, ?, ?);
         """,
         [
             (1, "Rhaenyra", 1, "F", "Adult", 1),
@@ -82,7 +81,7 @@ def initialize_samples_data(db: sqlite3.Connection) -> None:
     cursor.executemany(
         """
         INSERT INTO
-            houses(id, name, reputation, is_noble)
+            House(id, name, reputation, is_noble)
         VALUES
             (?, ?, ?, ?);
         """,
@@ -99,7 +98,7 @@ def initialize_samples_data(db: sqlite3.Connection) -> None:
     cursor.executemany(
         """
         INSERT INTO
-            relations (from_id, to_id, type)
+            Relationship (from_id, to_id, type)
         VALUES
             (?, ?, ?);
         """,
@@ -142,7 +141,7 @@ def initialize_samples_data(db: sqlite3.Connection) -> None:
 def main() -> None:
     """Main Function."""
 
-    logging.basicConfig(level=logging.INFO)
+    logging.basicConfig(level=logging.DEBUG)
 
     # First, create a new SQLite database connection.
     # The database doesn't need to be in-memory. We use
@@ -151,30 +150,23 @@ def main() -> None:
 
     initialize_samples_data(db)
 
-    engine = drolta.engine.QueryEngine()
+    engine = drolta.engine.QueryEngine(db)
 
-    engine.execute_script(
-        """
-        ALIAS characters AS Character;
-        ALIAS relations AS Relation;
-        ALIAS houses AS House;
+    with open(
+        pathlib.Path(__file__).parent / "sample_script.drolta", encoding="utf-8"
+    ) as f:
+        engine.execute_script(f.read())
 
-        DEFINE
-            PaternalHalfSiblings(?x, ?y)
+    parents: list[tuple[str, str]] = engine.query("""
+        FIND ?child_name, ?parent_name
         WHERE
-            Relation(from_id=?x, to_id=?bf, type="BiologicalFather")
-            Relation(from_id=?y, to_id=?bf, type="BiologicalFather")
-            Relation(from_id=?x, to_id=?x_m, type="Mother")
-            Relation(from_id=?y, to_id=?y_m, type="Mother")
-            ((?x_m != ?y_m) AND (?x != ?y));
+            Parent(?child, ?parent)
+            Character(id=?child, name=?child_name)
+            Character(id=?parent, name=?parent_name);
+        """).fetch_all()
 
-        DEFINE
-            FamilySize(?family_id AS id, COUNT(?character_id) AS count)
-        WHERE
-            Family(id=?family_id)
-            Character(id=?character_id, family_id=?family_id)
-        """
-    )
+    for child_name, parent_name in parents:
+        print(f"{parent_name} is a parent of {child_name}")
 
     # Query the database for all paternal half-siblings of the character
     # named "Addam". This is done by using the rule we specified above
@@ -190,7 +182,6 @@ def main() -> None:
             Character(id=?siblingId, name=?siblingName)
         ORDER BY ?siblingId;
         """,
-        db,
     ) as result:
 
         # Get the actual rows in the result. The order of the columns is the

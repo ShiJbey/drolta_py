@@ -634,6 +634,7 @@ class DroltaInterpreter(ASTVisitor):
         "_alias_resolution_cache",
         "_next_query_id",
         "_filter_expr_visitor",
+        "max_recursion_depth"
     )
 
     db: SQLiteDatabase
@@ -660,6 +661,8 @@ class DroltaInterpreter(ASTVisitor):
     """Gives each query a unique ID to prevent table name clashes."""
     _filter_expr_visitor: FilterExprNodeVisitor
     """Builds query strings from filter expression nodes."""
+    max_recursion_depth: int
+    """The maximum number of iterations to perform when expanding recursive rules."""
 
     def __init__(self, db: SQLiteDatabase) -> None:
         super().__init__()
@@ -675,6 +678,7 @@ class DroltaInterpreter(ASTVisitor):
         self._alias_resolution_cache = dict()
         self._next_query_id = 0
         self._filter_expr_visitor = FilterExprNodeVisitor()
+        self.max_recursion_depth = 30
 
     def execute_script(self, drolta_script: str) -> None:
         """Load rules and aliases from a Drolta script.
@@ -1341,8 +1345,69 @@ class DroltaInterpreter(ASTVisitor):
 
         self.get_scope().tables.append(TempTable(temp_table_name, output_vars))
 
-    def _eval_rule_variant(self, rule_name: str, rule_variant: RuleVariant, recursive_ref: str, scc: set[str]) -> None:
-        pass
+    def _expand_recursive_rule_variant(
+        self,
+        rule_name: str,
+        rule_variant: RuleVariant,
+        recursive_ref: WhereStmtNode,
+        scc: set[str],
+        key: int,
+    ) -> None:
+        """Expand a single rule variant with respect to a specific recursive alternative."""
+
+        self._push_scope([v.clone() for v in rule_variant.result_vars])
+
+        sorted_where_stmt_nodes = sorted(
+            rule_variant.where_expressions.statements, key=get_execution_order
+        )
+
+        for stmt_node in sorted_where_stmt_nodes:
+            node_type = stmt_node.get_type()
+
+            if node_type == NodeType.PREDICATE_EXPR:
+                predicate_expr = cast(PredicateExprNode, stmt_node)
+
+                if stmt_node is recursive_ref:
+                    sub_rule_name = self.resolve_predicate_name(predicate_expr.name)
+                    self.execute_predicate_sql(f"{sub_rule_name}__delta", predicate_expr)
+                elif predicate_expr.name in scc:
+                    sub_rule_name = self.resolve_predicate_name(predicate_expr.name)
+                    self.execute_predicate_sql(f"{sub_rule_name}__full", predicate_expr)
+                else:
+                    self.visit_predicate(predicate_expr)
+
+            elif is_filter_expression(stmt_node):
+                self.visit_filter(cast(FilterExprNode, stmt_node))
+
+            elif node_type == NodeType.PREDICATE_NEGATION_EXPR:
+                neg_expr = cast(PredicateNegationExprNode, stmt_node)
+                negated_pred_name = self.resolve_predicate_name(neg_expr.expr.name)
+
+                if negated_pred_name in scc:
+                    raise DroltaError(
+                        f"Rule '{rule_name}' negates '{negated_pred_name}', which is in the "
+                        "same recursive component. Negation of a predicate within its "
+                        "own recursive cycle is not allowed."
+                    )
+
+                temp_table = self._cross_join_tables_in_scope(self.get_scope())
+                self.get_scope().tables.append(temp_table)
+                self.visit_not_predicate(cast(PredicateNegationExprNode, stmt_node))
+
+            self._join_tables_with_shared_vars()
+
+        temp_table = self._cross_join_tables_in_scope(self.get_scope())
+        result_table = self._execute_rule_variant_sql(
+            temp_table, rule_variant, key
+        )
+        self.pop_scope()
+        self.db.drop_table(temp_table.name)
+
+        new_table_name = f"{rule_name}__new"
+        if not self.db.table_exists(new_table_name):
+            self.db.execute(f'CREATE TEMP TABLE "{new_table_name}" AS SELECT * FROM "{result_table.name}" WHERE 0')
+        self.db.execute(f'INSERT INTO "{new_table_name}" SELECT DISTINCT * FROM "{result_table.name}"')
+        self.db.drop_table(result_table.name)
 
     def _execute_rule_variant_sql(self, table: TempTable, rule_variant: RuleVariant, key: int) -> TempTable:
         """Execute a SQL query against the given table with the given rule."""
@@ -1484,10 +1549,6 @@ class DroltaInterpreter(ASTVisitor):
         connected_components = get_connected_components(dependency_graph)
         self.sccs = connected_components
 
-    def _exec(self, sql_str: str) -> None:
-        """Execute the given SQL string on the database."""
-        self.db.execute(sql_str)
-
     def _get_table_column_names(self, table_name: str) -> list[str]:
         """Get the column names of the given table sorted by definition order."""
         if table_name in self._table_column_name_cache:
@@ -1503,12 +1564,6 @@ class DroltaInterpreter(ASTVisitor):
         column_names = [x[0] for x in result]
         self._table_column_name_cache[table_name] = column_names
         return column_names
-
-    def _row_count(self, table_name: str) -> int:
-        """Get the number of rows in a table."""
-
-        # Raise key error because no table was found with the given name
-        raise KeyError(table_name)
 
     def _get_scc_for(self, name: str) -> Optional[set[str]]:
         """Get the strongly connected component containing the given rule name."""
@@ -1556,9 +1611,20 @@ class DroltaInterpreter(ASTVisitor):
 
         return False
 
-    def _copy_table(self, destination_name: str, source_name: str) -> None:
-        """Copy the contents of one table to another table."""
-        pass
+    def _copy_table(self, source_table: TempTable, destination_name: str) -> TempTable:
+        """Copy the contents of one table to another table.
+
+        Parameters
+        ----------
+        source_name
+            The name of the table to copy
+        destination_name
+            The name assigned to the source copy
+        """
+        self.db.execute(
+            f"CREATE TEMP TABLE {destination_name} AS SELECT * FROM {source_table.name}"
+        )
+        return TempTable(destination_name, set(source_table.column_names))
 
     def _union_into(self, destination_name: str, source_name: str, create_dest: bool = True) -> None:
         """Union the contents of the source table into the destination_table.
@@ -1574,50 +1640,77 @@ class DroltaInterpreter(ASTVisitor):
         """
         pass
 
-    def _scc_refs_in_clause(self, rule_variant: RuleVariant, scc: set[str]) -> list[str]:
-        return []
+    def _scc_refs_in_clause(self, rule_variant: RuleVariant, scc: set[str]) -> list[WhereStmtNode]:
+        references: list[WhereStmtNode] = []
+
+        for where_stmt in rule_variant.where_expressions.statements:
+
+            if where_stmt.get_type() == NodeType.PREDICATE_EXPR:
+                predicate_node = cast(PredicateExprNode, where_stmt)
+                resolved_predicate_name = self.resolve_predicate_name(
+                    predicate_node.name
+                )
+                if resolved_predicate_name in scc:
+                    references.append(where_stmt)
+
+            elif where_stmt.get_type() == NodeType.PREDICATE_NEGATION_EXPR:
+                predicate_node = cast(PredicateExprNode, where_stmt)
+                resolved_predicate_name = self.resolve_predicate_name(
+                    predicate_node.name
+                )
+                if resolved_predicate_name in scc:
+                    references.append(where_stmt)
+
+        return references
 
     def _evaluate_scc(self, scc: set[str]) -> None:
         """Evaluate all the rules in given SCC and create temp tables for their results."""
 
+        # Start by expanding the non-recursive variants of all the rules
+        # in the connected component. The resulting tables will
         for name in scc:
-            # self._create_empty(f"{name}__full")
-            self._run_seed_rules(
-                name, self._rules[name].variants, scc
-            )  # clauses with no ref into scc
-            self._copy_table(f"{name}__full_new", f"{name}__delta")
-            self._union_into(f"{name}__full", f"{name}__full_new")
+            full_seed_table = self._expand_rule_base_cases(name, self._rules[name].variants, scc)
+            self._copy_table(full_seed_table, f"{name}__delta")
+
 
         changed = True
-        while changed:
+        num_iterations = 0
+
+        # Continue iterating over all the rules in the scc until no new
+        # information is derived or the maximum recursion depth is reached
+        while changed and num_iterations < self.max_recursion_depth:
+
             changed = False
+            num_iterations += 1
+
             for name in scc:
-                # self._create_empty(f"{name}__new")
-                for rule_variant in self._rules[name].variants:
+                for i, rule_variant in enumerate(self._rules[name].variants):
+                    # Variants that do not reference the scc were already expanded
+                    # during the initial _expand_rule_base_cases
                     if not self._check_rule_references_scc(rule_variant, scc):
-                        continue  # already handled in seeding
+                        continue
 
                     for recursive_ref in self._scc_refs_in_clause(rule_variant, scc):
                         # evaluate this clause with recursive_ref bound to its __delta,
                         # all other scc members bound to their __full
-                        self._eval_rule_variant(name, rule_variant, recursive_ref, scc)
+                        self._expand_recursive_rule_variant(name, rule_variant, recursive_ref, scc, i)
 
                 # new tuples = new - full (this is the diff that drives termination)
-                self._exec(f"""
+                self.db.execute(f"""
                     CREATE TEMP TABLE "{name}__diff" AS
                     SELECT * FROM "{name}__new"
                     EXCEPT
                     SELECT * FROM "{name}__full"
                 """)
-                if self._row_count(f"{name}__diff") > 0:
+
+                if self.db.get_row_count(f"{name}__diff") > 0:
                     changed = True
 
-            # promote diffs to full/delta only after all group members computed
             for name in scc:
-                self._exec(f'INSERT INTO "{name}__full" SELECT * FROM "{name}__diff"')
-                self._exec(f'DROP TABLE "{name}__delta"')
-                self._exec(f'ALTER TABLE "{name}__diff" RENAME TO "{name}__delta"')
-                self._exec(f'DROP TABLE "{name}__new"')
+                self.db.execute(f'INSERT INTO "{name}__full" SELECT * FROM "{name}__diff"')
+                self.db.drop_table(f'{name}__delta')
+                self.db.execute(f'ALTER TABLE "{name}__diff" RENAME TO "{name}__delta"')
+                self.db.drop_table(f'{name}__new')
 
     def _check_rule_references_scc(
         self, rule_variant: RuleVariant, scc: set[str]
@@ -1647,44 +1740,72 @@ class DroltaInterpreter(ASTVisitor):
 
         return False
 
-    def _run_seed_rules(
-        self, name: str, rule_variants: list[RuleVariant], scc: set[str]
-    ) -> None:
+    def _expand_rule_base_cases(
+        self, rule_name: str, rule_variants: list[RuleVariant], scc: set[str]
+    ) -> TempTable:
         """Evaluate all non-recursive rules for a rule and union results
         into '{name}__full_new', the seed data for the fixpoint loop."""
 
-        seed_rules = [
+        seed_variants = [
             clause
             for clause in rule_variants
             if not self._check_rule_references_scc(clause, scc)
         ]
 
-        if not seed_rules:
+        if not seed_variants:
             raise DroltaError(
-                f"Recursive rule '{name}' has no non-recursive base case."
+                f"Recursive rule '{rule_name}' has no non-recursive base case variants."
             )
 
-        for rule_variant in seed_rules:
-            self._push_scope([v.clone() for v in rule_variant.result_vars])
+        # We start by making a new scope to hold the tables produced during
+        # this process.
+        self._push_scope([v.clone() for v in seed_variants[0].result_vars])
 
+        # Iterate through all variants of the given rule and generate a `__full` table
+        # by taking the union of each of their results.
+        for i, rule_variant in enumerate(seed_variants):
+
+            self._push_scope()
+
+            # Sort expressions to push filters and not-predicate expressions
+            # to the end of the query.
             where_expressions = sorted(
                 rule_variant.where_expressions.statements, key=get_execution_order
             )
 
+            # Loop through the statements in the where expression, joining
+            # together tables with common variables if possible
             for expr in where_expressions:
-                expr_type = expr.get_type()
-                if expr_type == NodeType.PREDICATE_EXPR:
+                expression_type = expr.get_type()
+
+                if expression_type == NodeType.PREDICATE_EXPR:
                     self.visit_predicate(cast(PredicateExprNode, expr))
+
                 elif is_filter_expression(expr):
                     self.visit_filter(cast(FilterExprNode, expr))
-                elif expr_type == NodeType.PREDICATE_NEGATION_EXPR:
+
+                elif expression_type == NodeType.PREDICATE_NEGATION_EXPR:
+                    temp_table = self._cross_join_tables_in_scope(self.get_scope())
+                    self.get_scope().tables.append(temp_table)
                     self.visit_not_predicate(cast(PredicateNegationExprNode, expr))
+
                 self._join_tables_with_shared_vars()
 
-            self._cross_join_tables_in_scope(self.get_scope())
-            clause_result_table = self.get_scope().tables.pop()
+            # Cross join the remaining tables to get one table to perform the SQL
+            temp_table = self._cross_join_tables_in_scope(self.get_scope())
 
-            self._exec(f"""
-                INSERT INTO "{name}__full_new"
-                SELECT DISTINCT * FROM "{clause_result_table.name}"
-            """)
+            # This should add the table to the top level scope.
+            result_table = self._execute_rule_variant_sql(temp_table, rule_variant, i)
+            self.pop_scope()
+            self.db.drop_table(temp_table.name)
+            self.get_scope().tables.append(result_table)
+
+        # Now, union all the tables together to create the fully expanded table.
+        # We do not store the table within the scope because we do not want it
+        # to be dropped when the scope is dropped.
+        result = self._union_tables_in_scope(self.get_scope(), f"{rule_name}__full")
+
+        # Remember to pop the scope created while expanding this rule.
+        self.pop_scope()
+
+        return result

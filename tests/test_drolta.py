@@ -132,6 +132,7 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
             (1, 13, "Father"),  # Rhaenyra -> Viserys
             (1, 13, "BiologicalFather"),  # Rhaenyra -> Viserys
             (16, 14, "Mother"),  # Aegon -> Alicent
+            (16, 13, "BiologicalFather"),  # Aegon -> Viserys
             (14, 15, "Father"),  # Alicent => Otto
             (14, 15, "BiologicalFather"),  # Alicent => Otto
         ],
@@ -1319,5 +1320,63 @@ def test_query_bindings() -> None:
     ).fetch_all()
 
     assert len(rows) == 1
+
+    db.close()
+
+
+def test_recursive_rule() -> None:
+    """Test recursive rule behavior."""
+
+    db = sqlite3.Connection(":memory:")
+
+    initialize_test_data(db)
+
+    engine = drolta.engine.QueryEngine(db)
+
+    engine.execute_script("""
+        ALIAS relations AS Relationship;
+        ALIAS characters AS Character;
+
+        DEFINE
+            Mother(?x, ?y)
+        WHERE
+            Relationship(?x, ?y, type="Mother");
+
+        DEFINE
+            Father(?x, ?y)
+        WHERE
+            Relationship(?x, ?y, type="BiologicalFather");
+
+        DEFINE
+            Parent(?x, ?y)
+        WHERE
+            Mother(?x, ?y);
+
+        DEFINE
+            Parent(?x, ?y)
+        WHERE
+            Father(?x, ?y);
+
+        DEFINE
+            Ancestor(?x, ?y)
+        WHERE
+            Parent(?x, ?Y);
+
+        DEFINE
+            Ancestor(?x, ?y)
+        WHERE
+            Parent(?x, ?z)
+            Ancestor(?z, ?y);
+    """)
+
+    parents: list[tuple[str, str]] = engine.query("""
+        FIND ?char_name, ?ancestor_name
+        WHERE
+            Ancestor(?x, ?y)
+            Character(id=?x, name=?char_name)
+            Character(id=?y, name=?ancestor_name);
+    """).fetch_all()
+
+    assert len(parents) == 20
 
     db.close()

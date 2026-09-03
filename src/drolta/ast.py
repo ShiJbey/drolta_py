@@ -799,6 +799,9 @@ class ASTBuilderVisitor(DroltaParserVisitor):
             values=cast(AtomListNode, self.visit(ctx.atom_list())),  # type: ignore
         )
 
+    def visitAtom_list(self, ctx: DroltaParser.Atom_listContext | Any): # type: ignore
+        return AtomListNode([self.visit(x) for x in ctx.atom()]) # type: ignore
+
     def visitAndFilterStmt(self, ctx: DroltaParser.OrFilterStmtContext | Any):  # type: ignore
         return ANDFilterExprNode(
             left=cast(FilterExprNode, self.visit(ctx.left)),  # type: ignore

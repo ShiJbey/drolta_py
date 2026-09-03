@@ -15,6 +15,7 @@ from drolta.ast import (
     AliasDeclarationNode,
     ANDFilterExprNode,
     ASTNode,
+    AtomNode,
     ComparisonFilterExprNode,
     ComparisonOp,
     FilterExprNode,
@@ -75,43 +76,64 @@ def ordering_term_to_str(node: OrderingTermNode) -> str:
     return f"{node.variable.value}{asc_desc}{nulls_order}"
 
 
-def membership_filter_expr_to_str(node: MembershipFilterExprNode) -> str:
-    value_list = ", ".join(str(v) for v in node.values.items)
-    expression_op = "NOT IN" if node.is_negated else "IN"
-    return f"({node.left.value} {expression_op} ({value_list}))"
+class FilterExprNodeVisitor:
+    """Walks an AST subtree starting at a filter expression and returns a string."""
 
+    def visit(self, node: ASTNode) -> str:
+        if isinstance(node, ORFilterExprNode):
+            return self.visit_or_filter_expr(node)
+        elif isinstance(node, ANDFilterExprNode):
+            return self.visit_and_filter_expr(node)
+        elif isinstance(node, NOTFilterExprNode):
+            return self.visit_not_filter_expr(node)
+        elif isinstance(node, ComparisonFilterExprNode):
+            return self.visit_comparison_filter_expr(node)
+        elif isinstance(node, MembershipFilterExprNode):
+            return self.visit_membership_filter_expr(node)
+        elif isinstance(node, AtomNode):
+            return str(node)
 
-def comparison_filter_to_str(node: ComparisonFilterExprNode) -> str:
-    if node.op == ComparisonOp.GT:
-        return f"({node.left} > {node.right})"
-    elif node.op == ComparisonOp.LT:
-        return f"({node.left} < {node.right})"
-    elif node.op == ComparisonOp.GTE:
-        return f"({node.left} >= {node.right})"
-    elif node.op == ComparisonOp.LTE:
-        return f"({node.left} <= {node.right})"
-    elif node.op == ComparisonOp.EQ:
+        raise DroltaError(f'Unsupported node type: {type(node)}')
+
+    def visit_comparison_filter_expr(self, node: ComparisonFilterExprNode) -> str:
+        operator_map = {
+            ComparisonOp.GT: '>',
+            ComparisonOp.LT: '<',
+            ComparisonOp.GTE: '>=',
+            ComparisonOp.LTE: '<=',
+            ComparisonOp.EQ: '=',
+            ComparisonOp.NEQ: '!=',
+        }
+
+        null_operator_map = {
+            ComparisonOp.EQ: 'IS',
+            ComparisonOp.NEQ: 'IS NOT',
+        }
+
         if node.right.get_type() == NodeType.NULL_LITERAL:
-            return f"({node.left} IS {node.right})"
+            op_str = null_operator_map[node.op]
         else:
-            return f"({node.left} = {node.right})"
-    else:
-        if node.right.get_type() == NodeType.NULL_LITERAL:
-            return f"({node.left} IS NOT {node.right})"
-        else:
-            return f"({node.left} != {node.right})"
+            op_str = operator_map[node.op]
 
+        left_str = self.visit(node.left)
 
-def and_filter_to_str(node: ANDFilterExprNode) -> str:
-    return f"({node.left} AND {node.right})"
+        right_str = self.visit(node.right)
 
+        return f"({left_str} {op_str} {right_str})"
 
-def or_filter_to_str(node: ORFilterExprNode) -> str:
-    return f"({node.left} OR {node.right})"
+    def visit_membership_filter_expr(self, node: MembershipFilterExprNode) -> str:
+        value_list = ", ".join(str(v) for v in node.values.items)
+        expression_op = "NOT IN" if node.is_negated else "IN"
+        return f"({node.left.value} {expression_op} ({value_list}))"
 
+    def visit_and_filter_expr(self, node: ANDFilterExprNode) -> str:
+        return f"({self.visit(node.left)} AND {self.visit(node.right)})"
 
-def not_filter_to_str(node: NOTFilterExprNode):
-    return f"(NOT {node.expr})"
+    def visit_or_filter_expr(self, node: ORFilterExprNode) -> str:
+        return f"({self.visit(node.left)} OR {self.visit(node.right)})"
+
+    def visit_not_filter_expr(self, node: NOTFilterExprNode):
+        return f"(NOT {self.visit(node.expr)})"
 
 
 def is_filter_expression(node: ASTNode) -> bool:
@@ -611,6 +633,7 @@ class DroltaInterpreter(ASTVisitor):
         "_table_column_name_cache",
         "_alias_resolution_cache",
         "_next_query_id",
+        "_filter_expr_visitor",
     )
 
     db: SQLiteDatabase
@@ -635,6 +658,8 @@ class DroltaInterpreter(ASTVisitor):
     """Aliases mapped to their final resolved name."""
     _next_query_id: int
     """Gives each query a unique ID to prevent table name clashes."""
+    _filter_expr_visitor: FilterExprNodeVisitor
+    """Builds query strings from filter expression nodes."""
 
     def __init__(self, db: SQLiteDatabase) -> None:
         super().__init__()
@@ -649,6 +674,7 @@ class DroltaInterpreter(ASTVisitor):
         self._table_column_name_cache = dict()
         self._alias_resolution_cache = dict()
         self._next_query_id = 0
+        self._filter_expr_visitor = FilterExprNodeVisitor()
 
     def execute_script(self, drolta_script: str) -> None:
         """Load rules and aliases from a Drolta script.
@@ -988,20 +1014,17 @@ class DroltaInterpreter(ASTVisitor):
 
         # This function forces all the previous tables to join and performs a filter
         # on them.
-        self._cross_join_tables_in_scope(self.get_scope())
-
-        result_table = self.get_scope().tables.pop()
-
-        sql_statement = f"SELECT * FROM {result_table.name} WHERE {node}"
+        prev_result_table = self._cross_join_tables_in_scope(self.get_scope())
 
         table_name = self.get_temp_table_name()
 
-        new_result_table = TempTable(
-            name=table_name, column_names=set(result_table.column_names)
-        )
+        new_result_table = TempTable(table_name, set(prev_result_table.column_names))
+
+        filter_str = self._filter_expr_visitor.visit(node)
 
         sql_temp_table_statement = (
-            f"CREATE TEMPORARY TABLE {table_name} AS {sql_statement};"
+            f"CREATE TEMPORARY TABLE {table_name} AS "
+            f"SELECT * FROM {prev_result_table.name} WHERE {filter_str};"
         )
 
         _logger.debug("Executing filter...")
@@ -1010,7 +1033,7 @@ class DroltaInterpreter(ASTVisitor):
         self.db.execute(sql_temp_table_statement)
 
         # delete the old temp_table
-        self.db.drop_table(result_table.name)
+        self.db.drop_table(prev_result_table.name)
 
         self.get_scope().tables.append(new_result_table)
 

@@ -773,7 +773,6 @@ class DroltaInterpreter(ASTVisitor):
         self._next_query_id += 1
         self.clear_scope_stack()
         self.clear_query_cache()
-        self.result = None
 
         _logger.debug("Starting query evaluation...")
 
@@ -1468,13 +1467,12 @@ class DroltaInterpreter(ASTVisitor):
     def clear_query_cache(self) -> None:
         """Clear all internal caches related to query execution."""
 
+        if self.result:
+            self.result.destroy()
+            self.result = None
+
         for rule_name in self._materialized_this_query:
             self.db.drop_table(f"{rule_name}__full")
-
-        if self.result:
-            result_table_name = self.result.result_table.name
-            self.result = None
-            self.db.drop_table(result_table_name)
 
         self._materialized_this_query.clear()
         self._table_column_name_cache.clear()

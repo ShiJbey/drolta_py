@@ -20,13 +20,7 @@ classifiers = [
 ]
 license = "MIT"
 license-files = ["LICENSE.md"]
-dependencies = [
-    "antlr4-python3-runtime>=4.13.2",
-    "sqlparse>=0.5.3",
-]
-
-[project.optional-dependencies]
-development = ["isort", "black", "hatchling", "build", "pytest", "antlr4-tools"]
+dependencies = ["antlr4-python3-runtime==4.13.2", "sqlparse==0.6.0"]
 
 [project.urls]
 Homepage = "https://github.com/ShiJbey/drolta_py/"

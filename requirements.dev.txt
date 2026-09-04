@@ -1,0 +1,6 @@
+antlr4-tools==0.2.2
+black==26.5.1
+build==1.6.0
+hatchling==1.32.0
+isort==9.0.1
+pytest==9.1.1

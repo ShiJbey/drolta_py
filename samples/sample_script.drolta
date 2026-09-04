@@ -7,16 +7,6 @@ DEFINE
     Father(?x, ?y)
 WHERE
     Relationship(?x, ?y, type="BiologicalFather");
-    
-DEFINE
-    Mother(?x, ?y)
-WHERE
-    Relationship(?x, ?y, type="Mother");
-
-DEFINE
-    Father(?x, ?y)
-WHERE
-    Relationship(?x, ?y, type="BiologicalFather");
 
 DEFINE
     Parent(?x, ?y)

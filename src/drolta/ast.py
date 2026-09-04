@@ -106,6 +106,9 @@ class VariableNode(AtomNode):
         super().__init__(NodeType.VARIABLE)
         self.value = variable
 
+    def __str__(self) -> str:
+        return self.value
+
 
 class IntLiteralNode(AtomNode):
     """A node containing a single integer value."""
@@ -118,6 +121,8 @@ class IntLiteralNode(AtomNode):
         super().__init__(NodeType.INT_LITERAL)
         self.value = value
 
+    def __str__(self) -> str:
+        return str(self.value)
 
 class FloatLiteralNode(AtomNode):
     """A node containing a single float value."""
@@ -129,6 +134,9 @@ class FloatLiteralNode(AtomNode):
     def __init__(self, value: float) -> None:
         super().__init__(NodeType.FLOAT_LITERAL)
         self.value = value
+
+    def __str__(self) -> str:
+        return str(self.value)
 
 
 class StringLiteralNode(AtomNode):
@@ -142,6 +150,8 @@ class StringLiteralNode(AtomNode):
         super().__init__(NodeType.STRING_LITERAL)
         self.value = value
 
+    def __str__(self) -> str:
+        return f"'{self.value}'"
 
 class BoolLiteralNode(AtomNode):
     """A node containing a single boolean value."""
@@ -154,12 +164,18 @@ class BoolLiteralNode(AtomNode):
         super().__init__(NodeType.BOOL_LITERAL)
         self.value = value
 
+    def __str__(self) -> str:
+        return str(self.value)
+
 
 class NullLiteralNode(AtomNode):
     """A null expression"""
 
     def __init__(self) -> None:
-            super().__init__(NodeType.NULL_LITERAL)
+        super().__init__(NodeType.NULL_LITERAL)
+
+    def __str__(self) -> str:
+        return "NULL"
 
 
 class NamedParamNode(ASTNode):
@@ -228,9 +244,7 @@ class ORFilterExprNode(FilterExprNode):
     left: FilterExprNode
     right: FilterExprNode
 
-    def __init__(
-        self, left: FilterExprNode, right: FilterExprNode
-    ) -> None:
+    def __init__(self, left: FilterExprNode, right: FilterExprNode) -> None:
         super().__init__(NodeType.OR_FILTER_EXPR)
         self.left = left
         self.right = right
@@ -244,9 +258,7 @@ class ANDFilterExprNode(FilterExprNode):
     left: FilterExprNode
     right: FilterExprNode
 
-    def __init__(
-        self, left: FilterExprNode, right: FilterExprNode
-    ) -> None:
+    def __init__(self, left: FilterExprNode, right: FilterExprNode) -> None:
         super().__init__(NodeType.AND_FILTER_EXPR)
         self.left = left
         self.right = right
@@ -294,14 +306,14 @@ class PredicateExprNode(ASTNode):
     __slots__ = ("name", "positional_params", "named_params")
 
     name: str
-    positional_params: PositionalParamListNode
-    named_params: NamedParamListNode
+    positional_params: Optional[PositionalParamListNode]
+    named_params: Optional[NamedParamListNode]
 
     def __init__(
-            self,
-            name: str,
-            positional_params: PositionalParamListNode,
-            named_params: NamedParamListNode,
+        self,
+        name: str,
+        positional_params: Optional[PositionalParamListNode],
+        named_params: Optional[NamedParamListNode],
     ) -> None:
         super().__init__(NodeType.PREDICATE_EXPR)
         self.name = name
@@ -347,10 +359,10 @@ class OrderingTermNode(ASTNode):
     nulls_sort_dir: NullsSortDirection
 
     def __init__(
-            self,
-            variable: VariableNode,
-            sort_dir: SortDirection = SortDirection.NONE,
-            nulls_sort_dir: NullsSortDirection = NullsSortDirection.NONE,
+        self,
+        variable: VariableNode,
+        sort_dir: SortDirection = SortDirection.NONE,
+        nulls_sort_dir: NullsSortDirection = NullsSortDirection.NONE,
     ) -> None:
         super().__init__(NodeType.ORDERING_TERM)
         self.variable = variable
@@ -447,17 +459,17 @@ class AliasDeclarationNode(ProgramStmtNode):
 class ResultVariableNode(ASTNode):
     """A variable returned by a rule or query."""
 
-    __slots__ = ("aggregate_name", "var_name", "alias")
+    __slots__ = ("aggregate_name", "variable", "alias")
 
     aggregate_name: str
-    var_name: str
+    variable: VariableNode
     alias: str
 
     def __init__(
-        self, var_name: str, aggregate_name: str = "", alias: str = ""
+        self, variable: VariableNode, aggregate_name: str = "", alias: str = ""
     ) -> None:
         super().__init__(NodeType.RESULT_VARIABLE)
-        self.var_name = var_name
+        self.variable = variable
         self.aggregate_name = aggregate_name
         self.alias = alias
 
@@ -480,7 +492,10 @@ class ResultVariableListNode(ASTNode):
 class DefineClauseNode(ASTNode):
     """The DEFINE clause of a rule declaration."""
 
-    __slots__ = ("name", "result_vars",)
+    __slots__ = (
+        "name",
+        "result_vars",
+    )
 
     name: str
     result_vars: ResultVariableListNode
@@ -498,7 +513,7 @@ class DefineClauseNode(ASTNode):
 class WhereClauseNode(ASTNode):
     """The WHERE clause of a rule declaration or query expression."""
 
-    __slots__  = ("statements",)
+    __slots__ = ("statements",)
 
     statements: list[WhereStmtNode]
 
@@ -626,51 +641,53 @@ class _SyntaxErrorListener(antlr4.DiagnosticErrorListener):
 class ASTBuilderVisitor(DroltaParserVisitor):
     """A parse tree visitor that builds a Drolta abstract syntax tree."""
 
+    def visitProg(self, ctx: DroltaParser.ProgContext):  # type: ignore
+        return ProgramNode([self.visit(s) for s in ctx.drolta_stmt_list().drolta_stmt()])  # type: ignore
 
-    def visitDeclare_alias_stmt(self, ctx: DroltaParser.Declare_alias_stmtContext | Any): # type: ignore
+    def visitDeclare_alias_stmt(self, ctx: DroltaParser.Declare_alias_stmtContext | Any):  # type: ignore
         return AliasDeclarationNode(
-            alias=str(ctx.alias.text), # type: ignore
-            original_name=str(ctx.original.text) # type: ignore
+            alias=str(ctx.alias.text),  # type: ignore
+            original_name=str(ctx.original.text),  # type: ignore
         )
 
-    def visitDeclare_rule_stmt(self, ctx: DroltaParser.Declare_rule_stmtContext): # type: ignore
+    def visitDeclare_rule_stmt(self, ctx: DroltaParser.Declare_rule_stmtContext):  # type: ignore
         node = RuleDeclarationNode(
-            define_clause=cast(DefineClauseNode, self.visit(ctx.define_clause())), # type: ignore
-            where_clause=cast(WhereClauseNode, self.visit(ctx.where_clause())), # type: ignore
+            define_clause=cast(DefineClauseNode, self.visit(ctx.define_clause())),  # type: ignore
+            where_clause=cast(WhereClauseNode, self.visit(ctx.where_clause())),  # type: ignore
         )
 
         if ctx.group_by_clause() is not None:
-            node.group_by = (self.visit(ctx.group_by_clause())) # type: ignore
+            node.group_by = self.visit(ctx.group_by_clause())  # type: ignore
 
         if ctx.order_by_clause() is not None:
-            node.order_by = self.visit(ctx.order_by_clause()) # type: ignore
+            node.order_by = self.visit(ctx.order_by_clause())  # type: ignore
 
         if ctx.limit_clause() is not None:
-            node.limit = self.visit(ctx.limit_clause()) # type: ignore
+            node.limit = self.visit(ctx.limit_clause())  # type: ignore
 
         return node
 
-    def visitQuery_stmt(self, ctx: DroltaParser.Query_stmtContext): # type: ignore
+    def visitQuery_stmt(self, ctx: DroltaParser.Query_stmtContext):  # type: ignore
         node = QueryExprNode(
-            find_clause=cast(FindClauseNode, self.visit(ctx.define_clause())), # type: ignore
-            where_clause=cast(WhereClauseNode, self.visit(ctx.where_clause())), # type: ignore
+            find_clause=cast(FindClauseNode, self.visit(ctx.find_clause())),  # type: ignore
+            where_clause=cast(WhereClauseNode, self.visit(ctx.where_clause())),  # type: ignore
         )
 
         if ctx.group_by_clause() is not None:
-                    node.group_by = (self.visit(ctx.group_by_clause())) # type: ignore
+            node.group_by = self.visit(ctx.group_by_clause())  # type: ignore
 
         if ctx.order_by_clause() is not None:
-            node.order_by = self.visit(ctx.order_by_clause()) # type: ignore
+            node.order_by = self.visit(ctx.order_by_clause())  # type: ignore
 
         if ctx.limit_clause() is not None:
-            node.limit = self.visit(ctx.limit_clause()) # type: ignore
+            node.limit = self.visit(ctx.limit_clause())  # type: ignore
 
         return node
 
-    def visitDefine_clause(self, ctx: DroltaParser.Define_clauseContext): # type: ignore
-        return DefineClauseNode(str(ctx.ruleName.text), self.visit(ctx.result_var_list())) # type: ignore
+    def visitDefine_clause(self, ctx: DroltaParser.Define_clauseContext):  # type: ignore
+        return DefineClauseNode(str(ctx.ruleName.text), self.visit(ctx.result_var_list()))  # type: ignore
 
-    def visitFind_clause(self, ctx: DroltaParser.Find_clauseContext): # type: ignore
+    def visitFind_clause(self, ctx: DroltaParser.Find_clauseContext):  # type: ignore
         varList: ResultVariableListNode = (
             self.visit(ctx.result_var_list())  # type: ignore
             if ctx.result_var_list() is not None
@@ -678,32 +695,32 @@ class ASTBuilderVisitor(DroltaParserVisitor):
         )
         return FindClauseNode(varList)
 
-    def visitResult_var_list(self, ctx: DroltaParser.Result_var_listContext):
-        return ResultVarListNode([self.visit(n) for n in ctx.result_var()]) # type: ignore
+    def visitResult_var_list(self, ctx: DroltaParser.Result_var_listContext):  # type: ignore
+        return ResultVariableListNode([self.visit(n) for n in ctx.result_var()])  # type: ignore
 
-    def visitResult_var(self, ctx: DroltaParser.Result_varContext): # type: ignore
-        node = ResultVariableNode(self.visit(ctx.variable())) # type: ignore
+    def visitResult_var(self, ctx: DroltaParser.Result_varContext):  # type: ignore
+        node = ResultVariableNode(self.visit(ctx.variable()))  # type: ignore
 
         if ctx.aggregateName is not None:
             node.aggregate_name = ctx.aggregateName.text
 
         if ctx.variable_alias() is not None:
-            node.alias = ctx.variable_alias().alias.text # type: ignore
+            node.alias = ctx.variable_alias().alias.text  # type: ignore
 
         return node
 
-    def visitWhere_clause(self, ctx: DroltaParser.Where_clauseContext): # type: ignore
-        return WhereClauseNode([self.visit(n) for n in ctx.where_stmt()]) # type: ignore
+    def visitWhere_clause(self, ctx: DroltaParser.Where_clauseContext):  # type: ignore
+        return WhereClauseNode([self.visit(n) for n in ctx.where_stmt()])  # type: ignore
 
-    def visitOrder_by_clause(self, ctx: DroltaParser.Order_by_clauseContext): # type: ignore
-        return OrderByClauseNode(self.visit(ctx.ordering_term_list())) # type: ignore
+    def visitOrder_by_clause(self, ctx: DroltaParser.Order_by_clauseContext):  # type: ignore
+        return OrderByClauseNode(self.visit(ctx.ordering_term_list()))  # type: ignore
 
-    def visitOrdering_term_list(self, ctx: DroltaParser.Ordering_term_listContext): # type: ignore
+    def visitOrdering_term_list(self, ctx: DroltaParser.Ordering_term_listContext):  # type: ignore
         orderingTerms: list[OrderingTermNode] = [self.visit(n) for n in ctx.ordering_term()]  # type: ignore
         return OrderingTermListNode(orderingTerms)
 
-    def visitOrdering_term(self, ctx: DroltaParser.Ordering_termContext): # type: ignore
-        variable: VariableNode = self.visit(ctx.variable()) # type: ignore
+    def visitOrdering_term(self, ctx: DroltaParser.Ordering_termContext):  # type: ignore
+        variable: VariableNode = self.visit(ctx.variable())  # type: ignore
 
         sortDirection = SortDirection.NONE
         nullsOrder = NullsSortDirection.NONE
@@ -720,101 +737,104 @@ class ASTBuilderVisitor(DroltaParserVisitor):
 
         return OrderingTermNode(variable, sortDirection, nullsOrder)
 
-    def visitGroup_by_clause(self, ctx: DroltaParser.Group_by_clauseContext): # type: ignore
-        return GroupByClauseNode(self.visit(ctx.variable_list())) # type: ignore
+    def visitGroup_by_clause(self, ctx: DroltaParser.Group_by_clauseContext):  # type: ignore
+        return GroupByClauseNode(self.visit(ctx.variable_list()))  # type: ignore
 
-    def visitVariable_list(self, ctx: DroltaParser.Variable_listContext): # type: ignore
-        variables: list[VariableNode] = [self.visit(n) for n in ctx.variable()] # type: ignore
+    def visitVariable_list(self, ctx: DroltaParser.Variable_listContext):  # type: ignore
+        variables: list[VariableNode] = [self.visit(n) for n in ctx.variable()]  # type: ignore
         return VariableListNode(variables)
 
-    def visitLimit_clause(self, ctx: DroltaParser.Limit_clauseContext): # type: ignore
-        limit = int(ctx.limitVal.text) # type: ignore
+    def visitLimit_clause(self, ctx: DroltaParser.Limit_clauseContext):  # type: ignore
+        limit = int(ctx.limitVal.text)  # type: ignore
         offset = int(ctx.offsetVal.text) if ctx.offsetVal is not None else -1
         return LimitClauseNode(limit, offset)
 
-    def visitPredicate_neg_stmt(self, ctx: DroltaParser.Predicate_neg_stmtContext | Any): # type: ignore
+    def visitPredicate_neg_stmt(self, ctx: DroltaParser.Predicate_neg_stmtContext | Any):  # type: ignore
         return PredicateNegationExprNode(
-            cast(PredicateExprNode, self.visit(ctx.predicate_stmt())) # type: ignore
+            cast(PredicateExprNode, self.visit(ctx.predicate_stmt()))  # type: ignore
         )
 
-    def visitPredicate_stmt(self, ctx: DroltaParser.Predicate_stmtContext | Any): # type: ignore
+    def visitPredicate_stmt(self, ctx: DroltaParser.Predicate_stmtContext | Any):  # type: ignore
         return PredicateExprNode(
-            name=str(ctx.IDENTIFIER().text), # type: ignore
+            name=str(ctx.IDENTIFIER().getText()),  # type: ignore
             positional_params=(
-                cast(PositionalParamListNode, self.visit(ctx.positional_param_list())) # type: ignore
+                cast(PositionalParamListNode, self.visit(ctx.positional_param_list()))  # type: ignore
                 if ctx.positional_param_list() is not None
                 else None
             ),
             named_params=(
-                cast(NamedParamListNode, self.visit(ctx.named_param_list())) # type: ignore
+                cast(NamedParamListNode, self.visit(ctx.named_param_list()))  # type: ignore
                 if ctx.named_param_list() is not None
                 else None
             ),
         )
 
-    def visitPositional_param_list(self, ctx: DroltaParser.Positional_param_listContext | Any): # type: ignore
+    def visitPositional_param_list(self, ctx: DroltaParser.Positional_param_listContext | Any):  # type: ignore
         return PositionalParamListNode(
-            params=[cast(AtomNode, self.visit(child)) for child in ctx.atom()] # type: ignore
+            params=[cast(AtomNode, self.visit(child)) for child in ctx.atom()]  # type: ignore
         )
 
-    def visitNamed_param_list(self, ctx: DroltaParser.Named_param_listContext | Any): # type: ignore
+    def visitNamed_param_list(self, ctx: DroltaParser.Named_param_listContext | Any):  # type: ignore
         return NamedParamListNode(
-            params=[cast(NamedParamNode, self.visit(child)) for child in ctx.named_param()] # type: ignore
+            params=[cast(NamedParamNode, self.visit(child)) for child in ctx.named_param()]  # type: ignore
         )
 
-    def visitNamed_param(self, ctx: DroltaParser.Named_paramContext | Any): # type: ignore
+    def visitNamed_param(self, ctx: DroltaParser.Named_paramContext | Any):  # type: ignore
         return NamedParamNode(
-            column_name=str(ctx.IDENTIFIER().text), # type: ignore, # type: ignore
-            value=cast(AtomNode, self.visit(ctx.atom())) # type: ignore
+            column_name=str(ctx.IDENTIFIER().getText()),  # type: ignore, # type: ignore
+            value=cast(AtomNode, self.visit(ctx.atom())),  # type: ignore
         )
 
-    def visitComparisonFilterStmt(self, ctx: DroltaParser.ComparisonFilterStmtContext | Any): # type: ignore
+    def visitComparisonFilterStmt(self, ctx: DroltaParser.ComparisonFilterStmtContext | Any):  # type: ignore
         return ComparisonFilterExprNode(
-            left=cast(VariableNode, self.visit(ctx.left)), # type: ignore
-            right=cast(AtomNode, self.visit(ctx.right)), # type: ignore
-            op=self.parse_comparison_op(ctx.op.text) # type: ignore
+            left=cast(VariableNode, self.visit(ctx.left)),  # type: ignore
+            right=cast(AtomNode, self.visit(ctx.right)),  # type: ignore
+            op=self.parse_comparison_op(ctx.op.getText()),  # type: ignore
         )
 
-    def visitMembershipFilterStmt(self, ctx: DroltaParser.MembershipFilterStmtContext | Any): # type: ignore
+    def visitMembershipFilterStmt(self, ctx: DroltaParser.MembershipFilterStmtContext | Any):  # type: ignore
         return MembershipFilterExprNode(
-            left=cast(VariableNode, self.visit(ctx.left)), # type: ignore
+            left=cast(VariableNode, self.visit(ctx.left)),  # type: ignore
             is_negated=ctx.NOT() != None,
-            values=cast(AtomListNode, self.visit(ctx.atom_list())) # type: ignore
+            values=cast(AtomListNode, self.visit(ctx.atom_list())),  # type: ignore
         )
 
-    def visitAndFilterStmt(self, ctx: DroltaParser.OrFilterStmtContext | Any): # type: ignore
-            return ANDFilterExprNode(
-                left=cast(FilterExprNode, self.visit(ctx.left)), # type: ignore
-                right=cast(FilterExprNode, self.visit(ctx.right)) # type: ignore
-            )
+    def visitAtom_list(self, ctx: DroltaParser.Atom_listContext | Any): # type: ignore
+        return AtomListNode([self.visit(x) for x in ctx.atom()]) # type: ignore
 
-    def visitOrFilterStmt(self, ctx: DroltaParser.OrFilterStmtContext | Any): # type: ignore
+    def visitAndFilterStmt(self, ctx: DroltaParser.OrFilterStmtContext | Any):  # type: ignore
+        return ANDFilterExprNode(
+            left=cast(FilterExprNode, self.visit(ctx.left)),  # type: ignore
+            right=cast(FilterExprNode, self.visit(ctx.right)),  # type: ignore
+        )
+
+    def visitOrFilterStmt(self, ctx: DroltaParser.OrFilterStmtContext | Any):  # type: ignore
         return ORFilterExprNode(
-            left=cast(FilterExprNode, self.visit(ctx.left)), # type: ignore
-            right=cast(FilterExprNode, self.visit(ctx.right)) # type: ignore
+            left=cast(FilterExprNode, self.visit(ctx.left)),  # type: ignore
+            right=cast(FilterExprNode, self.visit(ctx.right)),  # type: ignore
         )
 
-    def visitNotFilterStmt(self, ctx: DroltaParser.NotFilterStmtContext | Any): # type: ignore
-        return NOTFilterExprNode(cast(NOTFilterExprNode, self.visit(ctx.filter_stmt()))) # type: ignore
+    def visitNotFilterStmt(self, ctx: DroltaParser.NotFilterStmtContext | Any):  # type: ignore
+        return NOTFilterExprNode(cast(NOTFilterExprNode, self.visit(ctx.filter_stmt())))  # type: ignore
 
-    def visitInt_literal(self, ctx: DroltaParser.Int_literalContext | Any): # type: ignore
+    def visitInt_literal(self, ctx: DroltaParser.Int_literalContext | Any):  # type: ignore
         return IntLiteralNode(int(ctx.getText()))
 
-    def visitFloat_literal(self, ctx: DroltaParser.Float_literalContext | Any): # type: ignore
+    def visitFloat_literal(self, ctx: DroltaParser.Float_literalContext | Any):  # type: ignore
         return FloatLiteralNode(float(ctx.getText()))
 
-    def visitString_literal(self, ctx: DroltaParser.String_literalContext | Any): # type: ignore
-        return StringLiteralNode(ctx.getText()[1:-2])
+    def visitString_literal(self, ctx: DroltaParser.String_literalContext | Any):  # type: ignore
+        return StringLiteralNode(ctx.getText()[1:-1])
 
-    def visitNull_literal(self, ctx: DroltaParser.Null_literalContext | Any): # type: ignore
+    def visitNull_literal(self, ctx: DroltaParser.Null_literalContext | Any):  # type: ignore
         return NullLiteralNode()
 
-    def visitBool_literal(self, ctx: DroltaParser.Bool_literalContext | Any): # type: ignore
+    def visitBool_literal(self, ctx: DroltaParser.Bool_literalContext | Any):  # type: ignore
         text = ctx.getText().lower()
         return BoolLiteralNode(text == "true")
 
-    def visitVariable(self, ctx: DroltaParser.VariableContext | Any): # type: ignore
-        return VariableNode(ctx.getText())
+    def visitVariable(self, ctx: DroltaParser.VariableContext | Any):  # type: ignore
+        return VariableNode(ctx.getText()[1:]) # Get the name without '?' prefix
 
     @staticmethod
     def parse_comparison_op(text: str) -> ComparisonOp:
@@ -859,6 +879,6 @@ def generate_ast(script_text: str) -> ASTNode:
         raise SyntaxError(error_message)
 
     visitor = ASTBuilderVisitor()
-    ast_root = cast(ASTNode, visitor.visit(tree))
+    ast_root = visitor.visitProg(tree)
 
     return ast_root

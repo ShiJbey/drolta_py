@@ -11,8 +11,7 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
 
     cursor = db.cursor()
 
-    cursor.executescript(
-        """
+    cursor.executescript("""
         DROP TABLE IF EXISTS characters;
         DROP TABLE IF EXISTS houses;
         DROP TABLE IF EXISTS relations;
@@ -41,8 +40,7 @@ def initialize_test_data(db: sqlite3.Connection) -> None:
             FOREIGN KEY (from_id) REFERENCES characters(id),
             FOREIGN KEY (to_id) REFERENCES characters(id)
         ) STRICT;
-        """
-    )
+        """)
 
     cursor.executemany(
         """
@@ -142,7 +140,7 @@ def test_no_double_semi_col_on_cross_join() -> None:
 
     initialize_test_data(db)
 
-    engine = drolta.engine.QueryEngine()
+    engine = drolta.engine.QueryEngine(db)
 
     engine.query(
         """
@@ -151,7 +149,6 @@ def test_no_double_semi_col_on_cross_join() -> None:
             characters(id=?x)
             characters(id=?y)
         """,
-        db,
     ).fetch_all()
 
     assert True
@@ -163,16 +160,14 @@ def test_no_column_string_literal_conflicts() -> None:
 
     initialize_test_data(db)
 
-    engine = drolta.engine.QueryEngine()
+    engine = drolta.engine.QueryEngine(db)
 
-    engine.execute_script(
-        """
+    engine.execute_script("""
     DEFINE
         Mother(?Child, ?Mother)
     WHERE
         relations(from_id=?Child, to_id=?Mother, type="Mother");
-    """
-    )
+    """)
 
     with engine.query(
         """
@@ -181,7 +176,6 @@ def test_no_column_string_literal_conflicts() -> None:
         WHERE
             Mother(Child=?x, Mother=?y);
         """,
-        db,
     ) as result:
         entries = result.fetch_all()
 

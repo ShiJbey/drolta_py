@@ -22,7 +22,6 @@ license = "MIT"
 license-files = ["LICENSE.md"]
 dependencies = [
     "antlr4-python3-runtime>=4.13.2",
-    "attrs>=25.1.0",
     "sqlparse>=0.5.3",
 ]
 

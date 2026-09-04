@@ -55,3 +55,13 @@ class QueryEngine:
         """
 
         return self._interpreter.query(drolta_query, bindings)
+
+    def set_max_recursion_depth(self, value: int) -> None:
+        """Set the maximum recursion depth for recursive query rules."""
+        self._interpreter.max_recursion_depth = value
+
+    def reset_max_recursion_depth(self) -> None:
+        """Rest the maximum recursion depth to the default value."""
+        self._interpreter.max_recursion_depth = (
+            DroltaInterpreter.DEFAULT_RECURSION_DEPTH
+        )

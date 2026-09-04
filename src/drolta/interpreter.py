@@ -621,6 +621,9 @@ class DroltaInterpreter(ASTVisitor):
     TEMP_TABLE_PREFIX = "temp__"
     """Name prefix for all temporary tables created by the query engine."""
 
+    DEFAULT_RECURSION_DEPTH: int = 30
+    """Default max recursion iterations when expanding recursive rules."""
+
     __slots__ = (
         "db",
         "_aliases",
@@ -678,7 +681,7 @@ class DroltaInterpreter(ASTVisitor):
         self._alias_resolution_cache = dict()
         self._next_query_id = 0
         self._filter_expr_visitor = FilterExprNodeVisitor()
-        self.max_recursion_depth = 30
+        self.max_recursion_depth = self.DEFAULT_RECURSION_DEPTH
 
     def execute_script(self, drolta_script: str) -> None:
         """Load rules and aliases from a Drolta script.

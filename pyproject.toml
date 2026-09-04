@@ -2,8 +2,21 @@
 name = "drolta"
 dynamic = ["version"]
 authors = [{ name = "Shi Johnson-Bey", email = "shijbey@gmail.com" }]
-description = "A SQLite query engine for simplified, composable, and declarative queries."
-keywords = ["sqlite", "database", "query engine", "querying", "drolta"]
+description = "A Datalog-inspired query engine for SQLite"
+keywords = [
+    "sql",
+    "sqlite",
+    "datalog",
+    "datalog engine",
+    "database",
+    "relational database",
+    "query engine",
+    "query language",
+    "declarative",
+    "declarative programming",
+    "logic programming",
+    "drolta",
+]
 readme = "README.md"
 requires-python = ">=3.11"
 classifiers = [

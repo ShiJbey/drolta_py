@@ -5,6 +5,8 @@
 ### Added
 
 - Added support for positional parameters
+- Added support rule variants (rules sharing the same name and parameters)
+- Added support for recursive rules.
 
 ### Changed
 

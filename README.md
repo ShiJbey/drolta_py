@@ -79,15 +79,38 @@ to write queries.
 **Drolta Query:**
 
 ```plaintext
+-- Paternal Half Siblings
+DEFINE
+    HalfSiblings(?x, ?y)
+WHERE
+    relations(?x, ?father, relation_type="BiologicalFather")
+    relations(?y, ?father, relation_type="BiologicalFather")
+    relations(?x, ?x_mother, relation_type="Mother")
+    relations(?y, ?y_mother, relation_type="Mother")
+    ((?x_mother != ?y_mother) AND (?x != ?y));
+
+-- Maternal Half Siblings
+DEFINE
+    HalfSiblings(?x, ?y)
+WHERE
+    relations(?x, ?mother, relation_type="Mother")
+    relations(?y, ?mother, relation_type="Mother")
+    relations(?x, ?x_father, relation_type="BiologicalFather")
+    relations(?y, ?y_father, relation_type="BiologicalFather")
+    ((?x_father != ?y_father) AND (?x != ?y));
+
+-- The query below finds 10 pairs of characters who are
+-- rivals, half-siblings and heads of their
+-- respective families.
 FIND
     ?c0, ?c1
 WHERE
-    family_head(head_id=?c0, end_date=NULL)
-    family_head(head_id=?c1, end_date=NULL)
+    family_heads(head_id=?c0, end_date=NULL)
+    family_heads(head_id=?c1, end_date=NULL)
     (?c0 != ?c1)
-    relation(character_id=?c0, target_id=?c1, relation_type="rival")
-    relation(character_id=?c1, target_id=?c0, relation_type="rival")
-    half_siblings(character_a=?c0, character_b=?c1)
+    relations(?c0, ?c1, relation_type="rival")
+    relations(?c1, ?c0, relation_type="rival")
+    HalfSiblings(?c0, ?c1)
 LIMIT
     10;
 ```
@@ -325,9 +348,6 @@ predicates, rules, and filters are placed.
 Rules are loaded into the query engine by placing them inside a Drolta script and
 loading the script content with the `QueryEngine.execute_script(...)` method.
 
-Currently, rules may only have one definition (unlike Prolog). Redefining a rule will
-overwrite any pre-existing definition.
-
 Below is an example of a rule for finding characters in a game who are paternal
 half-siblings (they share the father but not the same mother).
 
@@ -340,6 +360,43 @@ WHERE
     relation(from_id=?x, to_id=?x_m, type="Mother")
     relation(from_id=?y, to_id=?y_m, type="Mother")
     (?x_m != ?y_m);
+```
+
+Drolta supports recursive rules. This means rules can use other definitions of the same rule to derive additional facts from the data base. The example below shows how ancestors can be derived using recursive rules.
+
+```plaintext
+DEFINE
+    Mother(?x, ?y)
+WHERE
+    Relationship(?x, ?y, type="Mother");
+
+DEFINE
+    Father(?x, ?y)
+WHERE
+    Relationship(?x, ?y, type="BiologicalFather");
+
+DEFINE
+    Parent(?x, ?y)
+WHERE
+    Mother(?x, ?y);
+
+DEFINE
+    Parent(?x, ?y)
+WHERE
+    Father(?x, ?y);
+
+DEFINE
+    Ancestor(?x, ?y)
+WHERE
+    Parent(?x, ?Y);
+
+-- This rule uses the base case define above to derive new instances of
+-- ancestor relationships.
+DEFINE
+    Ancestor(?x, ?y)
+WHERE
+    Parent(?x, ?z)
+    Ancestor(?z, ?y);
 ```
 
 ### Table/Rule Aliases

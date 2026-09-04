@@ -213,7 +213,7 @@ This package can be installed from PyPI.
 pip install drolta
 ```
 
-You can test the installation by printing the current drolta version in the Python REPL. Depending on when you install drolta, the version should be greater than or equal to the one printed below.
+You can test the installation by printing the current Drolta version in the Python REPL. Depending on when you install Drolta, the version should be greater than or equal to the one printed below.
 
 ```bash
 $ python3
@@ -271,7 +271,7 @@ variable aliases differ from [rule/predicate aliases](#tablerule-aliases). They 
 alternate column names to the query output. Otherwise, the column names will match the
 variable names without the leading '?'.
 
-Variables in drolta are identifiers with a leading '?' (question mark). For example,
+Variables in Drolta are identifiers with a leading '?' (question mark). For example,
 `?character_id`. Variable names may not start with a number and may only contain
 letters, numbers, and underscores.
 
@@ -410,7 +410,7 @@ In the example below, perhaps we have a database of information about non-player
 characters in a video game. We want to reference the `characters` database table using
 an alias.
 
-Aliases must be defined in a drolta script and loaded into the query engine using the
+Aliases must be defined in a Drolta script and loaded into the query engine using the
 `QueryEngine.execute_script(...)` method.
 
 ```plaintext
@@ -764,28 +764,26 @@ I'd love to hear about it. Please email me.
 
 ## 🏆 Ports and Applications
 
-If you're using drolta or have created a port of drolta for another language. Please
+If you're using Drolta or have created a port of Drolta for another language. Please
 contact me to have it listed here. I'd love to have a port for C# in Unity and one for
 Godot.
 
 ## 🧱 Editing the Parser
 
 Drolta uses [ANTLR4](https://www.antlr.org/) to generate its parser. If you modify the
-`*.g4` grammar file, you must run the command below. It will generate new base classes
-for the parser.
+`*.g4` grammar files, you must run the `generate_parser_code` script in the `scripts/`
+directory. Theres a batch script for windows and a shell script for Linux/MacOS. The
+development dependencies must be installed
 
 ```bash
-antlr4 -Dlanguage=Python3 -listener -no-visitor ./src/drolta/Drolta.g4 -o ./src/drolta/parsing
+./scripts/generate_parser_code.sh
 ```
 
-**WARNING:** This can cause breaking changes in the implementation that must be
-addressed before using the package.
-
-You can visualize an example parse tree with the following command (assuming you have
-`antlr4-tools` installed by pip).
+You can visualize an example parse tree with the following script. It loads the Drolta
+script in the samples directory and passes it through the grammar.
 
 ```bash
-antlr4-parse src/drolta/Drolta.g4 prog -gui
+./scripts/view_sample_parse_tree.sh
 ```
 
 ## 📦 Packaging

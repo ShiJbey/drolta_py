@@ -36,7 +36,7 @@ class QueryEngine:
         self,
         drolta_query: str,
         bindings: Optional[dict[str, Any]] = None,
-    ) -> DroltaResult:
+    ) -> Optional[DroltaResult]:
         """Query the SQLite database and return a cursor to the results.
 
         Parameters
